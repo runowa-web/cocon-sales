@@ -1,0 +1,2524 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>営業管理 - ここん</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP',sans-serif;background:#f0f2f5;color:#1a1a2e;overflow:hidden;height:100vh}
+
+/* Layout */
+.app-layout{display:flex;height:100vh}
+.sidebar{width:220px;min-width:220px;background:linear-gradient(180deg,#1a1a2e 0%,#16213e 100%);color:#fff;display:flex;flex-direction:column;z-index:50}
+.main-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:56px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 24px;gap:16px;flex-shrink:0}
+.content{flex:1;overflow-y:auto;padding:24px}
+
+/* Sidebar */
+.sidebar-logo{padding:20px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,0.08)}
+.sidebar-logo .logo-mark{width:36px;height:36px;background:#7c3aed;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff}
+.sidebar-logo .logo-text{font-size:16px;font-weight:700;letter-spacing:0.5px}
+.sidebar-nav{flex:1;padding:12px 0;overflow-y:auto}
+.nav-section{padding:4px 12px;margin-top:8px}
+.nav-section-label{font-size:10px;font-weight:600;text-transform:uppercase;color:rgba(255,255,255,0.35);letter-spacing:1px;padding:4px 8px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;margin:1px 8px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:rgba(255,255,255,0.65);transition:all 0.15s}
+.nav-item:hover{background:rgba(255,255,255,0.08);color:#fff}
+.nav-item.active{background:rgba(124,58,237,0.3);color:#fff;font-weight:600}
+.nav-item .nav-icon{font-size:16px;width:20px;text-align:center}
+.nav-item .badge{margin-left:auto;background:#7c3aed;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px}
+.sidebar-footer{padding:12px 16px;border-top:1px solid rgba(255,255,255,0.08);font-size:11px;color:rgba(255,255,255,0.35)}
+
+/* Login */
+.login-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;align-items:center;justify-content:center;z-index:999}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.login-box .logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;justify-content:center}
+.login-box .logo-mark{width:44px;height:44px;background:#7c3aed;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#fff}
+.login-box .logo-text{font-size:20px;font-weight:700;color:#1a1a2e}
+.login-box .form-group{margin-bottom:16px}
+.login-box .form-group label{display:block;font-size:12px;font-weight:600;color:#6b7280;margin-bottom:6px}
+.login-box .form-group input{width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px}
+.login-box .form-group input:focus{outline:none;border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,0.1)}
+.login-box .login-btn{width:100%;padding:12px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:background 0.15s}
+.login-box .login-btn:hover{background:#6d28d9}
+.login-box .login-error{color:#ef4444;font-size:12px;margin-top:8px}
+
+/* Splash screen */
+.splash-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);display:flex;align-items:center;justify-content:center;z-index:1000;flex-direction:column;gap:24px}
+.splash-logo{display:flex;flex-direction:column;align-items:center;gap:12px;animation:splashFadeIn 0.6s ease-out forwards}
+.splash-mark{width:200px;height:200px;animation:splashPop 0.9s cubic-bezier(0.34,1.56,0.64,1) forwards,splashPulse 2s ease-in-out 0.9s infinite;opacity:0;transform:scale(0.3)}
+.splash-mark img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 30px rgba(124,58,237,0.5))}
+.splash-bar{width:120px;height:3px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;opacity:0;animation:splashSlideUp 0.3s ease-out 0.8s forwards}
+.splash-bar-fill{height:100%;background:linear-gradient(90deg,#86c5a0,#5bb8d4);border-radius:3px;animation:splashProgress 1s ease-out 0.9s forwards;width:0}
+.splash-fade-out{animation:splashFadeOut 0.4s ease-in forwards}
+@keyframes splashPop{0%{opacity:0;transform:scale(0.3) rotate(-10deg)}60%{opacity:1;transform:scale(1.05) rotate(2deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
+@keyframes splashPulse{0%{filter:drop-shadow(0 0 30px rgba(124,58,237,0.5)) brightness(1)}50%{filter:drop-shadow(0 0 50px rgba(124,58,237,0.8)) brightness(1.1)}100%{filter:drop-shadow(0 0 30px rgba(124,58,237,0.5)) brightness(1)}}
+@keyframes splashSlideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes splashProgress{from{width:0}to{width:100%}}
+@keyframes splashFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes splashFadeOut{from{opacity:1}to{opacity:0}}
+
+/* Route search */
+.route-check{display:flex;align-items:center;gap:10px;padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;cursor:pointer;transition:all 0.15s}
+.route-check:hover{border-color:#7c3aed}
+.route-check.selected{border-color:#7c3aed;background:#faf5ff}
+.route-check input{accent-color:#7c3aed;width:16px;height:16px}
+.route-result{padding:16px;background:linear-gradient(135deg,#faf5ff,#ede9fe);border-radius:12px;margin-top:16px}
+.route-step{display:flex;align-items:flex-start;gap:12px;padding:10px 0;position:relative}
+.route-step:not(:last-child)::after{content:'';position:absolute;left:15px;top:36px;bottom:-4px;width:2px;background:#c4b5fd}
+.step-num{width:32px;height:32px;border-radius:50%;background:#7c3aed;color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;z-index:1}
+.step-num.start{background:#059669}
+.gps-status{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;font-size:12px}
+.gps-status.ok{background:#f0fdf4;border:1px solid #bbf7d0;color:#059669}
+.gps-status.loading{background:#fef3c7;border:1px solid #fde68a;color:#92400e}
+.gps-status.error{background:#fef2f2;border:1px solid #fecaca;color:#ef4444}
+
+/* Days badge */
+.days-badge{font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;white-space:nowrap}
+.days-fresh{background:#dcfce7;color:#059669}
+.days-warning{background:#fef3c7;color:#92400e}
+.days-danger{background:#fee2e2;color:#ef4444}
+.days-none{background:#f3f4f6;color:#9ca3af}
+
+/* Topbar */
+.topbar-title{font-size:18px;font-weight:700;color:#1a1a2e}
+.topbar-search{flex:1;max-width:400px}
+.topbar-search input{width:100%;padding:8px 12px 8px 36px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;background:#f8fafc url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") 12px center no-repeat;transition:border-color 0.15s}
+.topbar-search input:focus{outline:none;border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,0.1)}
+
+/* Kanban Board */
+.kanban-container{display:flex;gap:12px;overflow-x:auto;padding-bottom:16px;min-height:calc(100vh - 160px)}
+.kanban-column{min-width:280px;max-width:320px;flex:1;background:#fff;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.kanban-header{padding:14px 16px;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;justify-content:space-between}
+.kanban-header .phase-name{font-size:13px;font-weight:700;color:#374151}
+.kanban-header .phase-count{font-size:11px;font-weight:600;color:#9ca3af;background:#f3f4f6;padding:2px 8px;border-radius:10px}
+.kanban-body{flex:1;overflow-y:auto;padding:8px}
+.deal-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:14px;margin-bottom:8px;cursor:grab;transition:all 0.15s;border-left:4px solid #3b82f6}
+.deal-card:hover{box-shadow:0 4px 12px rgba(0,0,0,0.08);transform:translateY(-1px)}
+.deal-card.dragging{opacity:0.5;transform:rotate(2deg)}
+.deal-card.status-fresh{border-left-color:#3b82f6}
+.deal-card.status-aging{border-left-color:#eab308}
+.deal-card.status-stale{border-left-color:#ef4444}
+.deal-card .card-company{font-size:12px;font-weight:700;color:#374151;margin-bottom:4px}
+.deal-card .card-title{font-size:11px;color:#6b7280;margin-bottom:8px}
+.deal-card .card-meta{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#9ca3af}
+.deal-card .card-days{padding:2px 6px;border-radius:4px;font-weight:600;font-size:10px}
+.deal-card .card-days.fresh{background:#dbeafe;color:#1d4ed8}
+.deal-card .card-days.aging{background:#fef3c7;color:#92400e}
+.deal-card .card-days.stale{background:#fee2e2;color:#991b1b}
+
+/* Dashboard */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kpi-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.kpi-card .kpi-label{font-size:12px;color:#6b7280;font-weight:500;margin-bottom:4px}
+.kpi-card .kpi-value{font-size:28px;font-weight:800;color:#1a1a2e}
+.kpi-card .kpi-sub{font-size:11px;color:#9ca3af;margin-top:4px}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-card{background:#fff;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.chart-card h3{font-size:14px;font-weight:700;color:#374151;margin-bottom:16px}
+
+/* Table */
+.data-table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.data-table th{text-align:left;padding:12px 16px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.5px;background:#f8fafc;border-bottom:1px solid #e5e7eb}
+.data-table td{padding:12px 16px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6}
+.data-table tr:hover td{background:#faf5ff}
+.data-table .company-name{font-weight:600;color:#1a1a2e;cursor:pointer}
+.data-table .company-name:hover{color:#7c3aed}
+
+/* Action timeline */
+.action-item{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid #f3f4f6}
+.action-dot{width:10px;height:10px;border-radius:50%;background:#7c3aed;margin-top:5px;flex-shrink:0}
+.action-content{flex:1}
+.action-content .action-title{font-size:13px;font-weight:600;color:#374151}
+.action-content .action-desc{font-size:12px;color:#6b7280;margin-top:2px}
+.action-content .action-time{font-size:11px;color:#9ca3af;margin-top:4px}
+
+/* Contact list */
+.contact-card{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border-radius:10px;margin-bottom:8px;box-shadow:0 1px 2px rgba(0,0,0,0.04);cursor:pointer;transition:all 0.15s}
+.contact-card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.08)}
+.contact-avatar{width:40px;height:40px;border-radius:50%;background:#ede9fe;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#7c3aed}
+.contact-info{flex:1}
+.contact-info .name{font-size:13px;font-weight:600;color:#1a1a2e}
+.contact-info .role{font-size:11px;color:#6b7280}
+.contact-info .company{font-size:11px;color:#9ca3af}
+.contact-links a{font-size:12px;color:#7c3aed;text-decoration:none;margin-left:8px}
+.contact-links a:hover{text-decoration:underline}
+
+/* Buttons & Forms */
+.btn{padding:8px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all 0.15s}
+.btn-primary{background:#7c3aed;color:#fff}.btn-primary:hover{background:#6d28d9}
+.btn-ghost{background:transparent;color:#6b7280;border:1px solid #e5e7eb}.btn-ghost:hover{background:#f3f4f6}
+.btn-sm{padding:5px 10px;font-size:11px}
+.filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.filter-chip{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #e5e7eb;background:#fff;color:#6b7280;transition:all 0.15s}
+.filter-chip:hover{border-color:#7c3aed;color:#7c3aed}
+.filter-chip.active{background:#7c3aed;color:#fff;border-color:#7c3aed}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal-box{background:#fff;border-radius:16px;padding:24px;width:90%;max-width:520px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.15)}
+.modal-box h2{font-size:18px;font-weight:700;color:#1a1a2e;margin-bottom:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:#7c3aed;box-shadow:0 0 0 3px rgba(124,58,237,0.1)}
+
+/* Funnel chart (CSS-only) */
+.funnel-bar{display:flex;align-items:center;margin-bottom:8px;gap:12px}
+.funnel-bar .funnel-label{font-size:12px;color:#6b7280;min-width:140px;width:140px;flex-shrink:0;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.funnel-bar .funnel-fill{height:28px;border-radius:6px;background:linear-gradient(90deg,#7c3aed,#a78bfa);transition:width 0.6s ease}
+.funnel-bar .funnel-count{font-size:12px;font-weight:700;color:#374151;margin-left:8px}
+
+/* Detail panel */
+.detail-panel{position:fixed;top:0;right:0;width:480px;height:100vh;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,0.1);z-index:80;display:flex;flex-direction:column;overflow:hidden}
+.detail-header{padding:20px;border-bottom:1px solid #e5e7eb;display:flex;align-items:center;justify-content:space-between}
+.detail-header h2{font-size:16px;font-weight:700;color:#1a1a2e}
+.detail-body{flex:1;overflow-y:auto;padding:20px}
+.detail-tabs{display:flex;border-bottom:1px solid #e5e7eb}
+.detail-tab{padding:10px 16px;font-size:13px;font-weight:500;color:#6b7280;cursor:pointer;border-bottom:2px solid transparent}
+.detail-tab.active{color:#7c3aed;border-bottom-color:#7c3aed;font-weight:700}
+
+/* Calendar */
+.cal-controls{display:flex;align-items:center;gap:12px;padding:16px 24px;background:#fff;border-bottom:1px solid #e2e8f0;flex-shrink:0}
+.cal-controls .date-nav{display:flex;align-items:center;gap:8px}
+.cal-controls .date-nav button{background:none;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;color:#374151;transition:all 0.15s}
+.cal-controls .date-nav button:hover{background:#f3f4f6}
+.cal-controls .date-label{font-size:15px;font-weight:700;color:#1a1a2e;min-width:180px;text-align:center}
+.cal-controls .today-btn{background:#7c3aed;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer}
+.cal-controls .today-btn:hover{background:#6d28d9}
+.cal-wrapper{flex:1;overflow:auto;position:relative}
+.cal-grid{display:grid;min-width:100%;position:relative}
+.cal-corner{background:#f8fafc;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;position:sticky;left:0;top:0;z-index:30;width:72px;min-width:72px}
+.cal-staff-header{background:#f8fafc;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;padding:10px 8px;text-align:center;position:sticky;top:0;z-index:20;min-width:220px;overflow:hidden}
+.cal-staff-header .staff-name{font-size:13px;font-weight:700;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 4px}
+.cal-time{width:72px;min-width:72px;padding:0 8px;font-size:11px;color:#9ca3af;text-align:right;border-right:1px solid #e5e7eb;position:sticky;left:0;background:#fff;z-index:10;height:15px;line-height:15px}
+.cal-cell{border-right:1px solid #f3f4f6;border-bottom:1px solid transparent;position:relative;min-height:15px;min-width:220px;transition:background 0.1s}
+.cal-cell:hover{background:#faf5ff}
+.cal-cell.drag-over{background:#ede9fe}
+.cal-cell.hour-line{border-top:1px solid #e5e7eb}
+.cal-cell.half-line{border-top:1px solid #f0f2f5}
+.cal-event{position:absolute;left:3px;right:3px;border-radius:6px;padding:4px 8px;cursor:grab;font-size:11px;overflow:hidden;z-index:5;transition:box-shadow 0.15s,transform 0.15s;border-left:3px solid}
+.cal-event:hover{box-shadow:0 4px 12px rgba(0,0,0,0.15);transform:scale(1.02);z-index:10}
+.cal-event.dragging{opacity:0.5;transform:rotate(2deg);z-index:20}
+.cal-event .ev-title{font-weight:700;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-event .ev-sub{color:#6b7280;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cal-event .ev-time{color:#9ca3af;font-size:10px;margin-top:1px}
+.cal-event.cat-chiiki{background:#dbeafe;border-left-color:#3b82f6}
+.cal-event.cat-kyotaku{background:#d1fae5;border-left-color:#10b981}
+.cal-event.cat-byouin{background:#fee2e2;border-left-color:#ef4444}
+.cal-event.cat-clinic{background:#fef3c7;border-left-color:#f59e0b}
+.cal-event.cat-other{background:#ede9fe;border-left-color:#7c3aed}
+.cal-event.cat-houmon{background:#fce7f3;border-left-color:#ec4899}
+.unassigned-panel{width:220px;min-width:220px;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;flex-shrink:0}
+.unassigned-header{padding:14px 16px;border-bottom:1px solid #e5e7eb;font-size:13px;font-weight:700;color:#374151}
+.unassigned-body{flex:1;overflow-y:auto;padding:8px}
+.unassigned-card{background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:grab;transition:all 0.15s;border-left:3px solid #7c3aed}
+.unassigned-card:hover{box-shadow:0 2px 8px rgba(0,0,0,0.08);transform:translateY(-1px)}
+.unassigned-card .uc-name{font-size:12px;font-weight:700;color:#1a1a2e}
+.unassigned-card .uc-cat{font-size:10px;color:#6b7280;margin-top:2px}
+.unassigned-card .uc-phone{font-size:10px;color:#9ca3af;margin-top:1px}
+.staff-row{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid #f0f2f5;border-radius:8px;margin-bottom:8px}
+.staff-row .staff-color{width:28px;height:28px;border-radius:50%;flex-shrink:0}
+.staff-row .staff-info{flex:1}
+.staff-row .staff-info .sname{font-size:13px;font-weight:600;color:#1a1a2e}
+.staff-row .staff-info .srole{font-size:11px;color:#9ca3af}
+.staff-row .del-btn{background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:4px 8px;border-radius:4px}
+.staff-row .del-btn:hover{background:#fee2e2}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{width:60px;min-width:60px}
+  .sidebar .logo-text,.sidebar .nav-label,.sidebar .badge,.sidebar-footer,.nav-section-label{display:none}
+  .sidebar-logo{justify-content:center;padding:16px 8px}
+  .nav-item{justify-content:center;padding:12px;margin:2px 4px}
+  .nav-item .nav-icon{margin:0}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+  .chart-row{grid-template-columns:1fr}
+  .kanban-column{min-width:240px}
+  .detail-panel{width:100%}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script id="seed-data">
+// Seed data loaded separately to avoid Babel parsing overhead
+window.__SEED_OFFICES__ = [{"id":"2dsqxmx69be7dd1","name":"一宮市地域包括支援センター まちなか","address":"一宮市松降1-2-18 松降ビル4F","phone":"0586-85-8672","org":"社会福祉法人 一宮市社会福祉協議会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"b5er1zp69be7dd1","name":"一宮市地域包括支援センター やすらぎ","address":"一宮市奥町字下口西72-1","phone":"0586-61-3350","org":"社会医療法人 杏嶺会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"hp7kfr769be7dd1","name":"一宮市地域包括支援センター 泰玄会","address":"一宮市小信中島字仁井西23-1","phone":"0586-61-8273","org":"医療法人 泰玄会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"c8ezqmk69be7dd1","name":"一宮市地域包括支援センター コムネックスみづほ","address":"一宮市木曽川町黒田字西沼52","phone":"0586-86-5333","org":"社会福祉法人 慈雲福祉会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"ryk334z69be7dd1","name":"一宮市地域包括支援センター 萩の里","address":"一宮市萩原町東宮重字蓮原36-1","phone":"0586-67-3633","org":"一宮市（直営）","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"o1hstmi69be7dd1","name":"一宮市地域包括支援センター アウン","address":"一宮市浅井町尾関字同者165","phone":"0586-51-1384","org":"社会医療法人 大雄会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"mcaclra69be7dd1","name":"一宮市地域包括支援センター ちあき","address":"一宮市千秋町塩尻字山王1","phone":"0586-81-1711","org":"社会福祉法人 ちあき","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"ntdnu8r69be7dd1","name":"稲沢地域包括支援センター","address":"稲沢市大塚北9-45","phone":"0587-33-5400","org":"稲沢市（直営）","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"1kprzs169be7dd1","name":"小正・下津地域包括支援センター","address":"稲沢市駅前2-25-15","phone":"0587-22-1488","org":"社会福祉法人 稲沢市社会福祉協議会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"jxjblnc69be7dd1","name":"明治・千代田地域包括支援センター","address":"稲沢市井堀野口町27","phone":"0587-36-8310","org":"社会福祉法人（第二大和の里内）","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"h91ju1f69be7dd1","name":"大里地域包括支援センター","address":"稲沢市六角堂東町1-3-6","phone":"0587-23-7702","org":"稲沢市（直営）","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"69s4bqj69be7dd1","name":"祖父江地域包括支援センター","address":"稲沢市祖父江町本甲拾町野7","phone":"0587-97-2381","org":"JA愛知厚生連 稲沢厚生病院","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"md707gg69be7dd1","name":"平和地域包括支援センター","address":"稲沢市平和町観音堂東海塚33","phone":"0567-47-1776","org":"社会福祉法人 亀泉会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"shs8kno69be7dd1","name":"基幹型地域包括支援センター","address":"稲沢市稲府町1 稲沢市役所東庁舎内","phone":"0587-22-6077","org":"稲沢市（基幹型）","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"aevr6hy69be7dd1","name":"羽島市地域包括支援センター","address":"羽島市福寿町浅平3-25","phone":"058-394-2521","org":"羽島市社会福祉協議会","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"s0ojuzw69be7dd1","name":"羽島市南部地域包括支援センター","address":"岐阜県羽島市下中町石田687","phone":"","org":"社会福祉法人","category":"地域包括支援センター","contacts":[],"visits":[],"referrals":[]},{"id":"3m96phi69be7dd1","name":"ケアプランさくら","address":"下川田町5丁目24-1 第2サンシャインマンション307","phone":"0586-85-5674","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"wtpg8kx69be7dd1","name":"アミスタ居宅介護支援事業所","address":"今伊勢町馬寄郷浦7-1　ニューシティ恵106号","phone":"0586-52-7525","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"knoj0qw69be7dd1","name":"アルファ介護サービス","address":"西島町一丁目18番","phone":"0586-26-1750","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"3bcudyc69be7dd1","name":"アルメゾンみづほ居宅介護支援事業所","address":"三条字野間26番地1","phone":"0586-61-7277","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"5omgrq769be7dd1","name":"アースサポート一宮","address":"新生三丁目17番12号","phone":"0586-43-5401","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"6g02bfb69be7dd1","name":"愛一宮介護ステーション","address":"大江一丁目3番12号","phone":"0586-72-3731","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"ehbmwcs69be7dd1","name":"ヴィオレットケアサポート","address":"三条字道東4番地1","phone":"0586-63-2560","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"i82ekpx69be7dd1","name":"オアシスいちのみや居宅介護支援事業所","address":"今伊勢町宮後字宮代9番地1","phone":"0586-43-5335","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"zo5x27u69be7dd1","name":"モリ指定居宅介護支援事業所","address":"平和3丁目4番地の8","phone":"0586-47-3748","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"m8j1deo69be7dd1","name":"ポラリス居宅介護支援センター","address":"大浜2-6-2","phone":"0586-55-2000","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"8ezt7ln69be7dd1","name":"居宅介護支援事業所 ケアプラン・ニッケ一宮","address":"今伊勢町本神戸字前畑1　あすも一宮弐番館内 1階","phone":"0586-28-5885","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"frkkltm69be7dd1","name":"ケアプランえん","address":"公園通4丁目40番地2　田中ビル201","phone":"0586-71-7907","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"9iwc0rh69be7dd1","name":"ケアプランおと","address":"両郷町5丁目51-3 コーポ満寿美104","phone":"0586-52-6621","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"qd9d0iy69be7dd1","name":"居宅介護支援センター ピコグラム","address":"中島通五丁目11-2","phone":"0586-52-3762","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"452gu0d69be7dd1","name":"ケアプランセンター おむすび","address":"北方町北方字泉屋郷190","phone":"0586-87-7470","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"3y3oro769be7dd1","name":"パナソニック エイジフリーケアセンター一宮・ケアマネジメント","address":"平和1丁目9-1　サンローズ平和2F","phone":"0586-46-2621","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"9fmhrye69be7dd1","name":"ニチイケアセンター一宮","address":"今伊勢町本神戸字高野池10番地","phone":"0586-26-1351","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"7gfxgt069be7dd1","name":"ザ・フクシアコート居宅介護支援事業所","address":"松山町26番地1","phone":"0586-26-2300","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"ofodr6s69be7dd1","name":"サンファイン支援サービスさくら","address":"八幡5丁目1番108号","phone":"0586-47-6643","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"dwnflrb69be7dd1","name":"ケアプランセンター友","address":"音羽3丁目8番8号","phone":"0586-28-5623","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"3wskixr69be7dd1","name":"ケアプランセンター夢眠いちのみや","address":"今伊勢町本神戸字寺前10番","phone":"0586-52-4600","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"nmdb58g69be7dd1","name":"ケアプラン藤花","address":"森本1丁目2-21　タウニー菱川101","phone":"0586-82-5968","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"dlimmhe69be7dd1","name":"アットホームケア居宅介護支援事業所","address":"新生3丁目6-25","phone":"0586-46-1218","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"aeqv2an69be7dd1","name":"アバンセ介護センター居宅介護支援事業所","address":"新生3丁目9番1","phone":"0586-47-7867","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"00ysapr69be7dd1","name":"居宅介護支援事業所 ケアプラン・クローバー","address":"せんい一丁目3番地14　コーポ中野205号室","phone":"0586-75-6555","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"6i836c169be7dd1","name":"NPO法人 まごころ介護相談所","address":"文京1丁目4番6号","phone":"0586-73-8709","org":"NPO法人 まごころ介護相談所","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"b70mi5x69be7dd1","name":"Tヘルスケア合同会社 ケアプランセンターかえで","address":"三条墓北82　サンシャイン三条103","phone":"0586-52-6555","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"jbw0gh369be7dd1","name":"居宅介護支援ステーションつくし","address":"西島町4丁目23番地","phone":"0586-25-8814","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"k2b956q69be7dd1","name":"尾張介護サービス","address":"松降2丁目9番11号","phone":"0586-26-2311","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"00wuofa69be7dd1","name":"緑の家 けあぷらん 一宮","address":"緑四丁目10番25号","phone":"0586-85-7111","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"czzpeut69be7dd1","name":"一宮パサーダ居宅介護支援事業所","address":"花池2丁目12番18号","phone":"0586-85-9284","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"hz41awq69be7dd1","name":"介護保険相談センターもりもと","address":"森本二丁目21番5号","phone":"0586-52-3571","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"d5rvfr569be7dd1","name":"たに在宅クリニック居宅介護支援事業所","address":"末広1丁目3番18号　ファンタジアビル2F","phone":"0586-82-5501","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"wb4pps169be7dd1","name":"けあぷらん ふく","address":"新生3丁目13番17号　サンパーク明宝107号室","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"8sjwjho69be7dd1","name":"ふくじゅ くおん","address":"末広2丁目28番25号","phone":"0586-47-3580","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"vczqazd69be7dd1","name":"ほくとケアプランセンター","address":"泉一丁目15番2号","phone":"0586-51-4912","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"zi7lqft69be7dd1","name":"社会医療法人杏嶺会 介護保険相談センターあゆむ","address":"末広2丁目27番7","phone":"0586-80-1039","org":"社会医療法人杏嶺会","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"p5pczgx69be7dd1","name":"まつまえ居宅介護支援ステーション","address":"大江2丁目9番地11","phone":"0586-72-0006","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"lhx9nuj69be7dd1","name":"介護よろず相談所お達者くらぶ","address":"貴船2丁目13-1　フォーブル貴船103号","phone":"0586-82-4447","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"b6s5et269be7dd1","name":"たんぽぽ居宅介護支援センター","address":"西出町51番地","phone":"0586-52-6274","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"si5kloc69be7dd1","name":"野田・居宅介護支援事業所","address":"今伊勢町馬寄字西切戸21番地4　野田居宅介護支援事業所","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"jroamxg69be7dd1","name":"ライフケア居宅支援センター","address":"大和町毛受字東屋敷73","phone":"0586-64-8606","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"1uxe9in69be7dd1","name":"介護相談センター泰玄会","address":"小信中島字仁井西25番地1","phone":"0586-61-8221","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"308zhaj69be7dd1","name":"医療法人来光会 エブリデイ在宅介護相談センター","address":"大和町戸塚字宮崎西17-1","phone":"0586-47-5365","org":"医療法人来光会","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"emkrlwd69be7dd1","name":"居宅介護支援事業所 サンセリテ大和","address":"大和町於保字郷中2506番地","phone":"0586-45-4588","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"oszbfpf69be7dd1","name":"居宅介護支援事業所 たんぽぽ祢々の里","address":"千秋町加納馬場字松下60番地","phone":"0586-85-5126","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"l1fuhmu69be7dd1","name":"千秋病院介護保険サービスセンター","address":"千秋町塩尻山王1","phone":"0586-81-5588","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"255sqji69be7dd1","name":"介護プランセンター丹陽","address":"丹陽町九日市場字新猫塚85番地","phone":"0586-76-9906","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"8k1f2ly69be7dd1","name":"井上内科クリニック居宅介護支援事業所","address":"開明字東沼85番地","phone":"0586-64-0507","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"1mz154369be7dd1","name":"居宅介護支援センター やまと","address":"大和町南高井字江北8番地","phone":"0586-45-8124","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"kv9zkm969be7dd1","name":"(有)ファーマシーヘルパーイワタ","address":"赤見4-2-20","phone":"0586-72-4663","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"j4e5g8v69be7dd1","name":"居宅介護支援事業所 たんぽぽ加茂の里","address":"千秋町加茂字海戸22番","phone":"0586-76-3222","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"rltgq4u69be7dd1","name":"さん・さんガーデン居宅介護支援事業所","address":"北方町北方字内沼257番地1","phone":"0586-84-3305","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"8dykvd169be7dd1","name":"まるふく介護支援サービスセンター","address":"大和町毛受字西池田92","phone":"0586-44-5445","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"ezq2va669be7dd1","name":"ケアプラン下津","address":"丹陽町九日市場字中田87-5","phone":"0587-21-8200","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"0yai9t569be7dd1","name":"やわらぎ居宅介護相談センター","address":"小信中島字西五反田35番地2","phone":"0586-61-7320","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"emte99369be7dd1","name":"いちのみや居宅介護支援事業所","address":"東五城字備前12番地　一宮市尾西庁舎4階","phone":"0586-85-9962","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"kjc3oxb69be7dd1","name":"あさの岸介護サービス","address":"浅野字古屋敷49番地","phone":"0586-81-6006","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"a4uan1969be7dd1","name":"ケアサポート輝","address":"丹陽町外崎字郷西740-1　スプリングハイム105号","phone":"0586-85-6886","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"afhykt369be7dd1","name":"エスケアステーション開明 居宅介護支援","address":"開明字下上免32","phone":"0586-47-7890","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"3jw5ulq69be7dd1","name":"ケアプラン くれいん","address":"伝法寺11丁目5番地27","phone":"0586-52-3771","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"4xas5p369be7dd1","name":"ケアプランぼちぼち一宮","address":"大和町馬引字焼野105-1　メゾン焼野103","phone":"0586-52-4228","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"cbzofos69be7dd1","name":"JMケアプランセンター","address":"大和町馬引字乾出14番地2","phone":"0586-85-8163","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"tz9kjfg69be7dd1","name":"居宅介護支援事業所 紅","address":"千秋町佐野字五反田18番地","phone":"0586-64-6662","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"6tbwdvf69be7dd1","name":"居宅介護支援事業所 愛厚ホーム一宮苑","address":"大和町苅安賀字狭間70","phone":"0586-44-8300","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"n1vjr3f69be7dd1","name":"ケアパートナー一宮","address":"大和町妙興寺中之町11-1　ジェルメアンジュ 1F","phone":"0586-26-0234","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"cxttw7469be7dd1","name":"かんな介護支援センター","address":"千秋町加茂上向5","phone":"0586-52-7962","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"93j2z4m69be7dd1","name":"社会医療法人杏嶺会 介護保険相談センターやすらぎ","address":"奥町字下口西72番地1","phone":"0586-61-7020","org":"社会医療法人杏嶺会","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"dmnbq1569be7dd1","name":"葉栗介護保険事務所","address":"島村字六反田149番地1","phone":"0586-78-4158","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"cp8lwzn69be7dd1","name":"社会福法人 杏嶺会 介護保険相談センターびさい","address":"冨田字宮東1718番地1","phone":"0586-62-1631","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"luiv6kd69be7dd1","name":"居宅介護支援事業所 サンリバー","address":"木曽川町里小牧字笹原148番地","phone":"0586-87-1516","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"jmdboqe69be7dd1","name":"居宅介護支援事業所 ちいきの介護相談室","address":"木曽川町黒田字高田68","phone":"0586-86-7800","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"ubc5x5y69be7dd1","name":"来光会在宅介護相談センター","address":"浅井町前野字薬師裏53番地","phone":"0586-51-6173","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"348i3yz69be7dd1","name":"朝日介護サービスセンター","address":"明地字西阿古井1番地","phone":"0586-67-2660","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"3f92gzp69be7dd1","name":"居宅介護支援事業所 西御堂の里 三笠","address":"萩原町西御堂字虫祭1番地1","phone":"0586-52-7033","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"lcqmc2p69be7dd1","name":"居宅介護支援事業所 葉栗の郷","address":"島村字六反田60","phone":"0586-78-1311","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"gbuywri69be7dd1","name":"居宅介護支援事業所 たんぽぽ鴇の里","address":"時之島字大東21番1","phone":"0586-82-0821","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"sahjqdi69be7dd1","name":"松原クリニック介護相談センター","address":"木曽川町玉ノ井字吉原西119","phone":"0586-52-3667","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"d0gl8a969be7dd1","name":"コムネックスみづほ居宅介護支援事業所","address":"木曽川町黒田字西沼52番地","phone":"0586-86-7000","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"nkle87069be7dd1","name":"介護相談センターほっとファミリー","address":"柚木颪字古阿弥陀10番1","phone":"0586-76-8666","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"mmzt9fj69be7dd1","name":"あいふるの里居宅介護支援事業所","address":"浅井町西海戸字余陸寺45番地1","phone":"0586-78-8453","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"nrzrc5l69be7dd1","name":"いながき 居宅介護支援事業所","address":"浅井町江森字楼光寺13番地","phone":"0586-51-4327","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"r239eb669be7dd1","name":"いわと居宅介護支援事業所","address":"浅井町黒岩字宮東7-1","phone":"0586-51-6682","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"rryckgt69be7dd1","name":"えもり居宅介護支援事業所","address":"浅井町江森字楼光寺16番地1","phone":"0586-82-0209","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"j8p0geu69be7dd1","name":"ほっと居宅介護支援事業所","address":"佐千原椿34-1 2F","phone":"0586-82-3239","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"pj4708f69be7dd1","name":"もみの木居宅介護支援事業所","address":"木曽川町門間字北出6番地","phone":"0586-82-6587","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"6c0rvjv69be7dd1","name":"アコードにわ介護サービス","address":"丹羽字南屋敷1555番地1","phone":"0586-24-8565","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"wkayvs369be7dd1","name":"医療法人泰玄会 介護相談センターみなみ","address":"上祖父江字小稲葉1番地","phone":"0586-67-3733","org":"医療法人泰玄会","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"fpgo1cw69be7dd1","name":"ウエルコートみづほ居宅介護支援事業所","address":"浅井町尾関字同者163番地の2","phone":"0586-51-7333","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"n8bncqd69be7dd1","name":"ケアプランセンター サザン一宮","address":"北小渕字道上55番地1","phone":"0586-75-5572","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"cz35bzc69be7dd1","name":"ケアプランセンターえんじゅ一宮奥町","address":"奥町字土桶43番地","phone":"0586-52-6771","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"1g9lvhr69be7dd1","name":"ケアプランセンターきらり","address":"木曽川町外割田字東郷中86-2　グランドールYK403","phone":"0586-52-6693","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"h11yjcc69be7dd1","name":"ケアプランセンターオレンジ","address":"木曽川町黒田字野畔40-1　サンライズアサノ2E","phone":"050-1721-5055","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"popr46v69be7dd1","name":"フクシア居宅支援事業所","address":"小原町14-1","phone":"0586-26-7055","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"mvziruh69be7dd1","name":"ベストリハ介護相談センター里小牧","address":"木曽川町里小牧字野方29番地","phone":"0586-86-7211","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"xgdkixb69be7dd1","name":"一宮市萩の里居宅介護支援事業所","address":"萩原町東宮重字蓮原36番地1","phone":"0586-68-5837","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"eof4rb469be7dd1","name":"介護相談まいる","address":"木曽川町内割田一の通り10番1","phone":"0586-84-1028","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"7j2r6xm69be7dd1","name":"ケアプラン アクア","address":"奥町字内込47番地3　コーポ内込102号","phone":"0586-61-7335","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"ax0cr5p69be7dd1","name":"高齢者生協在宅支援センターまったり","address":"萩原町西御堂字郷西切802-3","phone":"0586-67-5077","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"x3urvr269be7dd1","name":"木漏れ日居宅介護支援事業所","address":"東五城字古川14-1","phone":"0586-27-8545","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"9irouup69be7dd1","name":"アウン介護保険サービスセンター","address":"浅井町尾関字同者165","phone":"0586-51-3090","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"ckut1y669be7dd1","name":"社会医療法人 杏嶺会 一宮西病院","address":"開明字平1","phone":"0586-48-0088","org":"社会医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"prq5uq669be7dd1","name":"社会医療法人 大雄会 総合大雄会病院","address":"桜1-9-9","phone":"0586-72-1211","org":"社会医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"wuo0ge069be7dd1","name":"医療法人 あいほく 愛北ハートクリニック","address":"千秋町加納馬場清水77","phone":"0586-81-0555","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"s2cgs8569be7dd1","name":"きたおわり在宅支援クリニック","address":"多加木4-31-15","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ppwp3w369be7dd1","name":"医療法人 たに在宅クリニック","address":"末広1-3-18ファンタジアビル2F","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"xaqcbmm69be7dd1","name":"医療法人 ふじのはな ふじわら在宅ケアクリニック","address":"大赤見鷺目38","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"7i7i0q569be7dd1","name":"社会医療法人 大雄会 大雄会第一病院","address":"羽衣1-6-12","phone":"0586-26-2008","org":"社会医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ejo58ba69be7dd1","name":"医療法人 育徳会 磯村医院","address":"千秋町佐野字五反田21","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"41ensi669be7dd1","name":"医療法人 翔樹会 井上内科クリニック","address":"開明字東沼85","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"48sd1hu69be7dd1","name":"医療法人 孝友会 孝友クリニック","address":"北小渕字道上55-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"8qxw87069be7dd1","name":"医療法人 ふれあい 田中クリニック","address":"本町4-19-24","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"c3ym4cj69be7dd1","name":"医療法人 木端会 きはしクリニック","address":"大和町毛受東屋敷73","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"h77cqyt69be7dd1","name":"瀧消化器内科クリニック","address":"神山1-4-2","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ncyck3869be7dd1","name":"つつい内科クリニック","address":"花池2-11-20","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"yx9q6l069be7dd1","name":"医療法人 薔風会 加藤クリニック","address":"八幡4-7-28","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"5l7a29n69be7dd1","name":"二丁目診療所","address":"栄4-1-5エースリービル702","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"for3uiw69be7dd1","name":"医療法人 雄仁会 石黒クリニック","address":"今伊勢町新神戸九反野62","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"reqivth69be7dd1","name":"ごとう内科クリニック","address":"西萩原妙楽寺前1298-3","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"5rzkolb69be7dd1","name":"富田医院","address":"野口2-16-8","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"1o55s5f69be7dd1","name":"医療法人 松原クリニック","address":"木曽川町里小牧字東蒲原15","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"i4018fr69be7dd1","name":"藤クリニック","address":"木曽川町黒田一ノ通り25-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"dsz95p169be7dd1","name":"医療法人 慶陽会 こしの内科","address":"東五城字大平裏37","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"fp1qraw69be7dd1","name":"かとうファミリークリニック","address":"今伊勢町本神戸和田東18","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"hvon44j69be7dd1","name":"ひまわりクリニック丹西","address":"猿海道1-8-23","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"grid7zd69be7dd1","name":"医療法人 HRM かまた整形外科","address":"開明字東向野18-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"wgefbd869be7dd1","name":"みずの内科クリニック","address":"西大海道宅美51","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"tut9o4o69be7dd1","name":"医療法人 清流会 五藤医院","address":"木曽川町里小牧字野方170","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"huzuiea69be7dd1","name":"医療法人 明医会 のぞみケアクリニック","address":"木曽川町黒田北宿二の切72ギャラリーコート21-102","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"4yl7ey469be7dd1","name":"うかいファミリークリニック","address":"栄1-2-10ウェイクフォレストブロンド1F","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"y6w5f9u69be7dd1","name":"医療法人 栗兎会 腎・泌尿器科 河合クリニック","address":"今伊勢町宮後郷東23-5","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"7zeny9k69be7dd1","name":"医療法人 晟瑛医伸会 すぎやま内科クリニック","address":"今伊勢町宮後郷東36","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"qonio6369be7dd1","name":"医療法人 森中央クリニック","address":"萩原町西宮重東光堂18","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"4fza75m69be7dd1","name":"宮の森クリニック","address":"東五城北作野52-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"4h0t59m69be7dd1","name":"医療法人社団 明照会 トータルサポートクリニック一宮","address":"開明杁西郭71-1","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ntwssg469be7dd1","name":"萩原うかい内科","address":"萩原町花井方一本松33-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"2j4zzb369be7dd1","name":"かえでクリニック","address":"千秋町小山城66-6","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"sasli4c69be7dd1","name":"医療法人 正翔会 正翔会クリニック一宮","address":"今伊勢町本神戸前畑1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"itsz1di69be7dd1","name":"医療法人社団 孝佑会 メドタウンたなかファミリークリニック","address":"奥町宮前45-1","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"budo6l769be7dd1","name":"医療法人 光煌会 フレンズクリニック一宮・医科","address":"大和町馬引郷未申2285","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"pzzivf069be7dd1","name":"医療法人 しんりんクリニック","address":"柚木颪上ヶ田2-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"4iuqtov69be7dd1","name":"おおすきクリニック","address":"今伊勢町馬寄北塚本1-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"3mdinyz69be7dd1","name":"ねいろの里クリニック","address":"中町2-12-10","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ttqawe669be7dd1","name":"医療法人 岩田整形外科医院","address":"向山南1-7-18","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"yss3x8769be7dd1","name":"医療法人 仁誠会 稲垣医院","address":"浅井町江森字楼光寺13","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"zqerfw769be7dd1","name":"医療法人 岸内科","address":"浅野字古屋敷49","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"y39923e69be7dd1","name":"医療法人社団 いくた内科クリニック","address":"奥町字三出104-1","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"6y349n769be7dd1","name":"医療法人 香風会 こだま内科クリニック","address":"栄4-1-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"jqj7h4669be7dd1","name":"桜井クリニック","address":"大江1-6-10","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"8grj9ua69be7dd1","name":"しみず内科クリニック","address":"本町4-21-7","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"kd94ld369be7dd1","name":"医療法人 はらだ内科クリニック","address":"奥町字南目草14","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"s5sbbuz69be7dd1","name":"内科・小児科・耳鼻咽喉科 田中医院","address":"桜2-2-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"pb06s9o69be7dd1","name":"いしぐろ内科","address":"本町4-10-8","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"mriuaag69be7dd1","name":"医療法人 米本医院","address":"末広3-8-14","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"aasw1wy69be7dd1","name":"医療法人 佳心会 大和南クリニック","address":"大和町於保字上次22","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"b61umpk69be7dd1","name":"医療法人 糖友会 野村内科","address":"多加木3-4-3","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"dtyk6fi69be7dd1","name":"医療法人 優心会 渡辺外科","address":"平和3-4-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"glccpl969be7dd1","name":"木村クリニック","address":"松降通7-22","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"v9cwxh769be7dd1","name":"あさいクリニック","address":"今伊勢町宮後宮代11-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"08mf70s69be7dd1","name":"医療法人 墨医院","address":"木曽川町玉ノ井字八尻145","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"i06zicw69be7dd1","name":"医療法人 こざわクリニック","address":"木曽川町黒田酉新田中ノ切20-2","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"pq9x6wv69be7dd1","name":"きむら胃腸科・外科・内科","address":"牛野通4-36-2","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"su2il2269be7dd1","name":"医療法人 聖恵会 やまだクリニック","address":"花池4-16-24","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"9m7f8k069be7dd1","name":"医療法人 しみずファミリークリニック","address":"大和町馬引字郷丑寅2136-2","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"k7hm2si69be7dd1","name":"医療法人 いそむらファミリーアソシエイツ いそむらファミリークリニック","address":"丹羽字古屋敷72-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"uzueoy269be7dd1","name":"医療法人 秋桜会 真清田クリニック","address":"真清田2-4-19","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"l6ewv2g69be7dd1","name":"社会医療法人 杏嶺会 上林記念病院","address":"奥町字下口西89-1","phone":"0586-61-0110","org":"社会医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"1ryeou669be7dd1","name":"医療法人 尾張健友会 千秋病院","address":"千秋町塩尻字山王1","phone":"0586-77-0012","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"r37xu5369be7dd1","name":"医療法人 泰玄会 泰玄会病院","address":"東五城字備前1-1","phone":"0586-61-2121","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"jlmelsl69be7dd1","name":"一宮市立木曽川市民病院","address":"木曽川町黒田北野黒165","phone":"0586-86-2173","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"mb6s2tq69be7dd1","name":"医療法人 山下病院","address":"中町1-3-5","phone":"0586-45-4511","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"czx9qrp69be7dd1","name":"ともだクリニック","address":"木曽川町黒田十一ノ通り77-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"cju3ord69be7dd1","name":"医療法人 愛礼会 松前内科医院","address":"浅野紅楳野50-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"9v9ynbk69be7dd1","name":"一宮市立市民病院","address":"文京2-2-22","phone":"0586-71-1911","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"lr0iyxh69be7dd1","name":"医療法人 来光会 尾洲病院","address":"浅井町小日比野新太15","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ec1x7mx69be7dd1","name":"Kライン・ケアプランセンター稲沢","address":"稲沢市北麻績町沼25","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"7nakqae69be7dd1","name":"いろは居宅介護支援事業所","address":"稲沢市奥田堀畑町143番地　D'Sビル 2F","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"syspmxa69be7dd1","name":"けあぷらんおおやむら","address":"稲沢市大矢町寺脇11番地2","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"as9v6qd69be7dd1","name":"けあぷらんよりそい","address":"稲沢市祖父江町島本上縄1030-28","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"9l1acc669be7dd1","name":"さんわケアプランセンター","address":"稲沢市国府宮2 丁目2番17号　Royal Villa イーハトーブ国府宮1F","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"fqnmyvu69be7dd1","name":"ほのぼの平和指定居宅介護支援事業所","address":"稲沢市平和町下起南275番地1","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"wpk5olq69be7dd1","name":"まつまえケアマネステーション","address":"稲沢市正明寺1丁目2-22 2階","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"of80jdi69be7dd1","name":"まーる居宅介護支援事業所","address":"稲沢市祖父江町本甲大溝55　パラシオン101号室","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"a100n5d69be7dd1","name":"やまと介護サービス","address":"稲沢市東緑町三丁目3番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"5kv94l369be7dd1","name":"エブリサポート居宅介護支援事業所","address":"稲沢市祖父江町中牧外川222番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"nkmztk469be7dd1","name":"ケアサポート ひだまり","address":"稲沢市祖父江町祖父江高熊425番地3","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"uqlo4lh69be7dd1","name":"ケアサポート 悠","address":"稲沢市祖父江町山崎下枇394","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"6elbsf469be7dd1","name":"ケアプラン あいち福祉サービス","address":"稲沢市平和町下越中89","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"8ti2a4g69be7dd1","name":"ケアプラン おかげ de にっこり","address":"稲沢市国府宮4丁目3-12　クリーンレジデンス202号","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"vz88y1869be7dd1","name":"ケアプラン すずき","address":"稲沢市奥田立長町12","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"08al10n69be7dd1","name":"ケアプランLINKS","address":"稲沢市朝府町8番1-1409","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"z4nxno769be7dd1","name":"ケアプランふれあいサービス","address":"稲沢市井之口大坪町80-1(稲沢パールシティ3F)","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"a9i64jr69be7dd1","name":"ケアプランやました","address":"稲沢市高御堂1丁目2番13号","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"iqgma7169be7dd1","name":"ケアプランセンター あると","address":"稲沢市東緑町一丁目2-9","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"zlw8k0v69be7dd1","name":"ケアプランセンター 長楽","address":"稲沢市儀長五丁目129番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"mnzncwb69be7dd1","name":"ケア・デザイン","address":"稲沢市平和町横池三番割19番地　平和らくらくプラザ内","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"sb45bzs69be7dd1","name":"ステップ稲沢ケアプランセンター","address":"稲沢市高御堂2丁目13番2号　ハイツ高御堂G棟C","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"b1dd9gc69be7dd1","name":"亀泉会平和相談センター","address":"稲沢市平和町観音堂東海塚33番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"aus29bb69be7dd1","name":"介護サポートぬくもり","address":"稲沢市清水町郷西1047-1　プレサント清水G号室","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"bfq131569be7dd1","name":"介護相談センター蓮華","address":"稲沢市祖父江町二俣須賀垂180番地23","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"ed6irj469be7dd1","name":"居宅介護支援・尾張かとれあ","address":"稲沢市下津町東国府50番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"j50y8ai69be7dd1","name":"居宅介護支援事業所 サンセリテま琴","address":"稲沢市北島町皿屋敷2","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"99avshh69be7dd1","name":"居宅介護支援事業所ぴあおひさま","address":"稲沢市大塚町善世3394-6","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"eg4a9lk69be7dd1","name":"株式会社 さくら居宅介護支援事業所","address":"稲沢市祖父江町西鵜之本249番地","phone":"","org":"株式会社 さくら居宅介護支援事業所","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"i03paoa69be7dd1","name":"株式会社 福祉の里 稲沢営業所","address":"稲沢市高御堂5丁目160番地6","phone":"","org":"株式会社 福祉の里","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"rxr1zw469be7dd1","name":"稲沢厚生病院介護保険事業所","address":"稲沢市祖父江町本甲拾町野7番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"930qk7l69be7dd1","name":"稲沢市医師会居宅介護支援事業所","address":"稲沢市中野宮町60番地1","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"cnwge7369be7dd1","name":"稲沢市大和の里指定居宅介護支援事業所","address":"稲沢市六角堂東町一丁目3番地6","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"kzb8ua269be7dd1","name":"稲沢市第二大和の里指定居宅介護支援事業所","address":"稲沢市井堀野口町27番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"z1v7or069be7dd1","name":"稲沢老人保健施設 第1憩の泉居宅介護支援事業所","address":"稲沢市駅前二丁目27番3号","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"kjew2tj69be7dd1","name":"あーるケアプランセンター","address":"羽島市正木町曲利751-1笑樂乃郷大晃三旺館2階201","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"6ecm4pq69be7dd1","name":"ふれあい介護支援センター","address":"羽島市福寿町浅平3丁目25番地　福祉ふれあい会館 1階","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"uam6pnu69be7dd1","name":"やすらぎ苑在宅介護支援センター","address":"羽島市下中町石田687番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"h60ck1669be7dd1","name":"わおん介護支援センター","address":"羽島市上中町中708番地2　デイサービスわおんひとつ葉2階","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"lf248av69be7dd1","name":"ケアサポートセンターぬくもり","address":"羽島市竹鼻町新町2504番地1","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"b9eyr3q69be7dd1","name":"ケアプランセンター 花の木","address":"羽島市福寿町本郷2丁目5番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"cu1ad6g69be7dd1","name":"ケアマネステーションママーズ","address":"羽島市小熊町島2丁目12番地　メディカルプラザ岐阜羽島 内","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"21hbp0669be7dd1","name":"ケアマネセンターたんぎく","address":"羽島市小熊町島2丁目78番地1","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"1xfi4u969be7dd1","name":"ニチイケアセンター羽島","address":"羽島市江吉良町1367番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"0kat9ru69be7dd1","name":"ファミリアケアプランセンター","address":"羽島市竹鼻町丸の内10丁目72番地5","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"787f2c569be7dd1","name":"リハビリ介護総合支援センター","address":"羽島市正木町新井字四町目811番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"nio55dw69be7dd1","name":"介護まめ家 介護何でも相談所","address":"羽島市竹鼻町神楽48","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"qiednol69be7dd1","name":"介護支援センター ジョイフル羽島","address":"羽島市下中町城屋敷318-5","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"u3k7ts469be7dd1","name":"介護支援センタージョイ","address":"羽島市舟橋町7丁目39番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"3ody09q69be7dd1","name":"喫茶去ケアマネステーションほっつ","address":"羽島市堀津町前谷85","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"crwpuvb69be7dd1","name":"寿光苑在宅介護支援事業所","address":"羽島市小熊町2丁目750番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"984p8pv69be7dd1","name":"居宅介護支援レジデンス岐阜羽島","address":"羽島市福寿町千代田三","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"zxck4ii69be7dd1","name":"旺針療所介護支援センター","address":"羽島市舟橋町2丁目97番地","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"4tcgw1p69be7dd1","name":"羽島市医師会介護支援センター","address":"羽島市竹鼻町狐穴川口719-1","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"hpnwd3u69be7dd1","name":"調剤薬局 羽島","address":"羽島市竹鼻町狐穴3423-1","phone":"","org":"","category":"居宅介護支援","contacts":[],"visits":[],"referrals":[]},{"id":"r68mf7k69be7dd1","name":"稲沢市民病院","address":"稲沢市長束町沼100","phone":"0587-32-2111","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"msqdu1l69be7dd1","name":"愛知県厚生農業協同組合連合会 稲沢厚生病院","address":"稲沢市祖父江町本甲拾町野7","phone":"0587-97-2131","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"0w4uu7369be7dd1","name":"医療法人 六輪会 六輪病院","address":"稲沢市平和町塩川104","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"3ih01bg69be7dd1","name":"医療法人 洲栄会 山村外科","address":"稲沢市小池1-4-25","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"poale5k69be7dd1","name":"きたやまクリニック","address":"稲沢市稲沢町北山18-2","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"nlbyran69be7dd1","name":"オリーブ内科クリニック","address":"稲沢市正明寺3-191","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"96okcmz69be7dd1","name":"医療法人 大河内会 おおこうち内科クリニック","address":"稲沢市祖父江町桜方上切6-7","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ey8zvqs69be7dd1","name":"医療法人 樹浩会 根木クリニック","address":"稲沢市平和町下起南146-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"517vjfg69be7dd1","name":"いしはら内科・循環器内科クリニック","address":"稲沢市下津大門町91-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"xyngsvs69be7dd1","name":"いのくちファミリークリニック","address":"稲沢市井之口四家町66","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ilb811l69be7dd1","name":"すまいるクリニック","address":"稲沢市松下2-2-22サンライズ20-2F","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"kcrpsa369be7dd1","name":"橘クリニック","address":"稲沢市平和町丸渕上361","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"6vxmtyl69be7dd1","name":"あおぞら在宅クリニック","address":"稲沢市松下2-2-2稲沢フロントビル1F","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"23kpo9n69be7dd1","name":"医療法人 芙蓉会 田中医院","address":"稲沢市西町2-2-7","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ox7u5nb69be7dd1","name":"大里クリニック","address":"稲沢市高重中町118-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"5g5n2g369be7dd1","name":"伸医院","address":"稲沢市西溝口町郷東54","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"vr2dfri69be7dd1","name":"平和医院","address":"稲沢市平和町西光坊新町101","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"04lcslt69be7dd1","name":"医療法人 かわむらクリニック","address":"稲沢市大塚北6-50","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"r2a7pwc69be7dd1","name":"医療法人 やまかみ内科循環器科","address":"稲沢市一色中屋敷町153-1","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"kaap4se69be7dd1","name":"医療法人 晴優会 かじうらファミリークリニック","address":"稲沢市下津住吉町22","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"pn1mc6a69be7dd1","name":"羽島市民病院","address":"羽島市新生町3-246","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"i8obldk69be7dd1","name":"田中整形外科","address":"羽島市正木町大浦660-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"yyp6jbl69be7dd1","name":"さの内科クリニック","address":"羽島市小熊町島2-12","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"uzovotw69be7dd1","name":"医療法人社団 丹菊整形外科","address":"羽島市小熊町島2-78-1","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"ehcscry69be7dd1","name":"医療法人社団 平成会 渡邉医院","address":"羽島市竹鼻町22-1","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"u500d5569be7dd1","name":"医療法人社団 友輪会 山田医院","address":"羽島市上中町長間1270-1","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"dfxvb7w69be7dd1","name":"天外メンタルクリニック","address":"羽島市福寿町間島7-39","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"dyb8fxv69be7dd1","name":"医療法人 仁佑会 ながき内科クリニック","address":"羽島市舟橋町宮北1-27-3","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"9va7dr769be7dd1","name":"小田内科","address":"羽島市足近町2-204","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"uorl4sw69be7dd1","name":"中川クリニック","address":"羽島市竹鼻町狐穴250-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"pn4j1vk69be7dd1","name":"医療法人 はあと はあと在宅クリニック 羽島","address":"羽島市福寿町本郷2-140","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"g5r0l3069be7dd1","name":"医療法人社団 充仁会 岩佐医院","address":"羽島市正木町坂丸2-130","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"mp9qmyh69be7dd1","name":"羽島皮膚科・内科","address":"羽島市竹鼻町丸の内5-15","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"5ph3mhm69be7dd1","name":"医療法人社団 丸の内会 丸の内クリニック","address":"羽島市竹鼻町丸の内11-87","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"axvvas369be7dd1","name":"かわむら内科胃腸科","address":"羽島市舟橋町2-1","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"8l48dir69be7dd1","name":"不破医院","address":"羽島市正木町不破一色258","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"e3fr2z969be7dd1","name":"医療法人社団 大島内科クリニック 大島内科・内視鏡クリニック","address":"羽島市竹鼻町狐穴字共栄町2990-1","phone":"","org":"医療法人社団","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"z3l7xx069be7dd1","name":"医療法人 昭寿会 小川医院","address":"羽島市下中町城屋敷569","phone":"","org":"医療法人","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]},{"id":"sylh3nj69be7dd1","name":"いわたクリニック","address":"羽島市正木町上大浦2-38","phone":"","org":"","category":"病院・診療所","contacts":[],"visits":[],"referrals":[]}];
+</script>
+
+<script type="text/babel">
+const {useState, useEffect, useCallback, useMemo, useRef} = React;
+const LS = 'kokon_mazrica';
+
+// ─── Googleカレンダー自動登録設定 ───
+// Google Apps ScriptのデプロイURLを貼り付け（空欄ならGcal連携OFF）
+const GCAL_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz1VK7EUmIh5FaF8uMuLvCFkYxk9Lt-btns67JHUpBSGXNrzd0QvPbIVrOuW0UB2dVi/exec';
+
+// ─── Firebase設定 ───
+// ※ 以下にFirebaseプロジェクトの設定を貼り付けてください
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCJw69Cm1DzkiiYM5Q7I1vGmD9lxHE55WI",
+  authDomain: "cocon-eigyokanri.firebaseapp.com",
+  projectId: "cocon-eigyokanri",
+  storageBucket: "cocon-eigyokanri.firebasestorage.app",
+  messagingSenderId: "692653608740",
+  appId: "1:692653608740:web:4edf368870f8048e412db1"
+};
+
+// Firebase初期化（設定が入力されている場合のみ）
+let db = null;
+const FIRESTORE_DOC = 'app/main';
+try {
+  if(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId) {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+    console.log('✅ Firebase接続済み - リアルタイム同期ON');
+  } else {
+    console.log('ℹ️ Firebase未設定 - ローカル保存モード');
+  }
+} catch(e) { console.log('Firebase初期化エラー:', e); }
+
+// Utilities
+const uid = () => Math.random().toString(36).substr(2,9) + Date.now().toString(36);
+const today = () => new Date().toISOString().split('T')[0];
+const daysSince = d => d ? Math.floor((Date.now()-new Date(d+'T12:00:00'))/86400000) : null;
+const loadData = () => { try { return JSON.parse(localStorage.getItem(LS)||'null'); } catch{return null;} };
+// ── localStorage保存（自動・毎回） ──
+const saveLocal = d => {
+  try { localStorage.setItem(LS, JSON.stringify(d)); } catch(e){}
+};
+// ── Firestore同期（ユーザー操作時のみ明示的に呼ぶ） ──
+const syncFirestore = d => {
+  if(!db) return;
+  try {
+    const clean = JSON.parse(JSON.stringify(d));
+    // Firestoreの1MBドキュメント制限対策：名刺写真は除外
+    if(clean.calendarEvents) {
+      clean.calendarEvents = clean.calendarEvents.map(ev => {
+        if(ev.cardPhoto && ev.cardPhoto.length > 5000) return {...ev, cardPhoto:'[local]'};
+        return ev;
+      });
+    }
+    clean._updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    clean._updatedBy = sessionStorage.getItem('kokon_device_id') || 'unknown';
+    db.doc(FIRESTORE_DOC).set(clean).catch(e => console.log('Firestore保存エラー:', e));
+    console.log('☁️ Firestoreに同期');
+  } catch(e) { console.log('Firestore sync error:', e); }
+};
+// 後方互換: 旧コードがsaveDataを呼んでいる箇所用（localStorageのみ保存）
+const saveData = d => { saveLocal(d); };
+const staleStatus = d => { const n=daysSince(d); if(n===null) return 'stale'; if(n<=30) return 'fresh'; if(n<=60) return 'aging'; return 'stale'; };
+
+// Default phases for Mazrica-style kanban
+const DEFAULT_PHASES = ['アプローチ','ヒアリング','提案','見積','クロージング'];
+const RESULTS = ['受注','失注','保留'];
+const STAFF_COLORS = ['#7c3aed','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#8b5cf6','#f97316','#14b8a6'];
+const DEFAULT_CATEGORY_COLORS = {
+  '地域包括': '#3b82f6', '居宅': '#10b981', '病院': '#ef4444',
+  'クリニック': '#f59e0b', '訪問': '#ec4899', 'その他': '#7c3aed'
+};
+const CAL_HOURS = Array.from({length:25},(_,i)=>i);
+const CAL_CELL_H = 15;
+const CAL_TIMES = [];
+for(let h=0;h<=23;h++) for(let m of ['00','15','30','45']) CAL_TIMES.push(`${String(h).padStart(2,'0')}:${m}`);
+CAL_TIMES.push('24:00');
+const fmtDate = d => {const dd=new Date(d);const wd=['日','月','火','水','木','金','土'][dd.getDay()];return `${dd.getFullYear()}年${dd.getMonth()+1}月${dd.getDate()}日（${wd}）`;};
+// Get category color: try custom color first, then category name patterns, then default
+const getCategoryColor = (catName, categoryColors) => {
+  if(!catName) return '#7c3aed';
+  if(categoryColors && categoryColors[catName]) return categoryColors[catName];
+  // Fallback to pattern matching
+  if(catName.includes('地域包括')) return '#3b82f6';
+  if(catName.includes('居宅')) return '#10b981';
+  if(catName.includes('病院')) return '#ef4444';
+  if(catName.includes('クリニック')) return '#f59e0b';
+  if(catName.includes('訪問')) return '#ec4899';
+  return '#7c3aed';
+};
+
+const catClass = c => { if(!c) return 'cat-other'; if(c.includes('地域包括')) return 'cat-chiiki'; if(c.includes('居宅')) return 'cat-kyotaku'; if(c.includes('病院')) return 'cat-byouin'; if(c.includes('クリニック')) return 'cat-clinic'; if(c.includes('訪問')) return 'cat-houmon'; return 'cat-other'; };
+
+// ─── LOGIN SCREEN ───
+const PW_LS_KEY = 'kokon_app_pw';
+function getAppPassword() { return localStorage.getItem(PW_LS_KEY) || 'kokon2026'; }
+function setAppPassword(pw) {
+  localStorage.setItem(PW_LS_KEY, pw);
+  // Firestoreにもパスワードを同期（全デバイス共有）
+  if(db) {
+    db.doc('app/settings').set({appPassword: pw, _updatedAt: firebase.firestore.FieldValue.serverTimestamp()}, {merge:true})
+      .then(()=>console.log('🔑 パスワードをクラウドに同期'))
+      .catch(e=>console.log('パスワード同期エラー:', e));
+  }
+}
+// Firestoreからパスワードを取得して同期（初回読み込み時）
+let passwordListenerRegistered = false;
+function syncPasswordFromFirestore() {
+  if(!db) return;
+
+  // 初回：リモートパスワードを取得
+  db.doc('app/settings').get().then(snap => {
+    if(snap.exists && snap.data().appPassword) {
+      const remotePw = snap.data().appPassword;
+      localStorage.setItem(PW_LS_KEY, remotePw);
+      console.log('🔑 クラウドからパスワードを初期化');
+    }
+  }).catch(e=>console.log('パスワード取得エラー:', e));
+
+  // リアルタイムリスナーは1度だけ設定
+  if(!passwordListenerRegistered) {
+    db.doc('app/settings').onSnapshot(snap => {
+      if(snap.exists && snap.data().appPassword) {
+        const remotePw = snap.data().appPassword;
+        const currentPw = localStorage.getItem(PW_LS_KEY);
+        // パスワードが変わっていたら更新（他ユーザーによる変更を検知）
+        if(currentPw !== remotePw) {
+          localStorage.setItem(PW_LS_KEY, remotePw);
+          console.log('🔑 他のユーザーがパスワードを変更しました - 自動更新');
+        }
+      }
+    });
+    passwordListenerRegistered = true;
+  }
+}
+// Firebaseが準備できたら呼び出す（useEffectで実装推奨）
+if(db) syncPasswordFromFirestore();
+
+function SplashScreen({onDone}) {
+  const [fadeOut, setFadeOut] = useState(false);
+  useEffect(() => {
+    const t1 = setTimeout(() => setFadeOut(true), 2000);
+    const t2 = setTimeout(() => onDone(), 2400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+  return (
+    <div className={`splash-overlay ${fadeOut?'splash-fade-out':''}`}>
+      <div className="splash-logo">
+        <div className="splash-mark"><img src="logo.png" alt=""/></div>
+        <div className="splash-bar"><div className="splash-bar-fill"></div></div>
+      </div>
+    </div>
+  );
+}
+
+function LoginScreen({onLogin}) {
+  const [pw, setPw] = useState('');
+  const [error, setError] = useState('');
+  const handleLogin = () => {
+    if(pw === getAppPassword()) { sessionStorage.setItem('kokon_auth','1'); onLogin(); }
+    else { setError('パスワードが正しくありません'); }
+  };
+  return (
+    <div className="login-overlay">
+      <div className="login-box">
+        <div className="logo">
+          <span className="logo-text">営業管理</span>
+        </div>
+        <div className="form-group">
+          <label>パスワード</label>
+          <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setError('');}}
+            onKeyDown={e=>e.key==='Enter'&&handleLogin()} placeholder="パスワードを入力..." autoFocus/>
+        </div>
+        {error && <p className="login-error">{error}</p>}
+        <button className="login-btn" onClick={handleLogin}>ログイン</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── DAYS SINCE LAST VISIT ───
+function daysSinceLastVisit(officeId, calendarEvents) {
+  const visits = (calendarEvents||[]).filter(e=>e.officeId===officeId).sort((a,b)=>b.date.localeCompare(a.date));
+  if(visits.length===0) return null;
+  const lastDate = new Date(visits[0].date);
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.floor((now - lastDate) / 86400000);
+}
+
+function DaysBadge({days}) {
+  if(days===null) return <span className="days-badge days-none">未訪問</span>;
+  if(days===0) return <span className="days-badge days-fresh">今日</span>;
+  if(days<=7) return <span className="days-badge days-fresh">{days}日前</span>;
+  if(days<=30) return <span className="days-badge days-warning">{days}日前</span>;
+  return <span className="days-badge days-danger">{days}日前</span>;
+}
+
+function App() {
+  const [authed, setAuthed] = useState(()=>sessionStorage.getItem('kokon_auth')==='1');
+  const [showSplash, setShowSplash] = useState(false);
+  const [data, setData] = useState(() => {
+    const saved = loadData();
+    if (saved && saved.offices) return {...saved, staff: saved.staff||[], calendarEvents: saved.calendarEvents||[]};
+    const offices = (window.__SEED_OFFICES__||[]).map(o => ({...o, id: o.id || uid()}));
+    return {
+      offices,
+      deals: [],
+      actions: [],
+      contacts: [],
+      staff: [],
+      calendarEvents: [],
+      settings: {phases: [...DEFAULT_PHASES], apiKey:'', syncUrl:''},
+    };
+  });
+
+  const [page, setPage] = useState('dashboard');
+  const [detailId, setDetailId] = useState(null);
+  const [modal, setModal] = useState(null);
+  const [search, setSearch] = useState('');
+
+  // localStorageのみ自動保存（Firestoreには書き込まない）
+  useEffect(() => { saveLocal(data); }, [data]);
+
+  // デバイスID（同一端末からの更新を無視するため）
+  useEffect(() => {
+    if(!sessionStorage.getItem('kokon_device_id')) {
+      sessionStorage.setItem('kokon_device_id', uid());
+    }
+    // 初回起動時：Firestoreに既存データがあればそちらを優先読み込み
+    // ※ setDataしてもuseEffectはlocalStorage保存のみ。Firestore書き込みは発生しない
+    if(db) {
+      db.doc(FIRESTORE_DOC).get().then(snap => {
+        if(snap.exists) {
+          const remote = snap.data();
+          if(remote.offices && remote.offices.length > 0) {
+            console.log('📥 Firestoreから既存データを読み込み');
+            const merged = {...remote};
+            delete merged._updatedAt;
+            delete merged._updatedBy;
+            setData(merged);
+          }
+        }
+        console.log('✅ Firestore初期化完了');
+      }).catch(e => {
+        console.log('初回Firestore読込エラー:', e);
+      });
+    }
+  }, []);
+
+  // ─── Firestore リアルタイム同期リスナー ───
+  const firestoreSkipRef = useRef(false);
+  useEffect(() => {
+    if(!db) return;
+    const deviceId = sessionStorage.getItem('kokon_device_id');
+    const unsub = db.doc(FIRESTORE_DOC).onSnapshot(snap => {
+      if(!snap.exists) return;
+      const remote = snap.data();
+      // 自分が書き込んだ更新は無視（ループ防止）
+      if(remote._updatedBy === deviceId) return;
+      console.log('🔄 リモートから同期更新を受信');
+      // 名刺写真はローカルを維持（setDataしてもFirestoreには書き戻さない設計）
+      setData(prev => {
+        const merged = {...remote};
+        delete merged._updatedAt;
+        delete merged._updatedBy;
+        if(merged.calendarEvents && prev.calendarEvents) {
+          merged.calendarEvents = merged.calendarEvents.map(ev => {
+            if(ev.cardPhoto === '[local]') {
+              const local = prev.calendarEvents.find(l => l.id === ev.id);
+              return local ? {...ev, cardPhoto: local.cardPhoto||''} : ev;
+            }
+            return ev;
+          });
+        }
+        return merged;
+      });
+    }, err => console.log('Firestore listener error:', err));
+    return () => unsub();
+  }, []);
+
+  // ユーザー操作でデータ変更 → localStorage + Firestore両方に保存
+  const upData = fn => setData(d => {
+    const next = fn(d);
+    // ユーザー操作なのでFirestoreにも同期（これが唯一のFirestore書き込み経路）
+    syncFirestore(next);
+    return next;
+  });
+  const addDeal = deal => upData(d => ({...d, deals:[...d.deals, {...deal, id:uid(), createdAt:today()}]}));
+  const updateDeal = (id, updates) => upData(d => ({...d, deals:d.deals.map(x=>x.id===id?{...x,...updates}:x)}));
+  const deleteDeal = id => upData(d => ({...d, deals:d.deals.filter(x=>x.id!==id)}));
+  const addAction = act => upData(d => ({...d, actions:[{...act, id:uid(), date:today()}, ...d.actions]}));
+  const addContact = c => upData(d => ({...d, contacts:[...d.contacts, {...c, id:uid()}]}));
+  const deleteContact = id => upData(d => ({...d, contacts:d.contacts.filter(x=>x.id!==id)}));
+
+  const allContacts = useMemo(() => {
+    const fromOffices = [];
+    data.offices.forEach(o => (o.contacts||[]).forEach((c,i) => fromOffices.push({...c, officeId:o.id, officeName:o.name, _src:'office', _idx:i})));
+    const manual = data.contacts.map(c => ({...c, officeName: data.offices.find(o=>o.id===c.officeId)?.name||'', _src:'manual'}));
+    return [...fromOffices, ...manual];
+  }, [data.offices, data.contacts]);
+
+  const ctx = {data, page, setPage, detailId, setDetailId, modal, setModal, search, setSearch,
+    addDeal, updateDeal, deleteDeal, addAction, addContact, deleteContact, allContacts, upData};
+
+  if(!authed && !showSplash) return <LoginScreen onLogin={()=>setShowSplash(true)}/>;
+  if(showSplash) return <SplashScreen onDone={()=>{setShowSplash(false);setAuthed(true);}}/>;
+
+  return (
+    <div className="app-layout">
+      <Sidebar {...ctx}/>
+      <div className="main-area">
+        <Topbar {...ctx}/>
+        <div className="content">
+          {page==='dashboard' && <Dashboard {...ctx}/>}
+          {page==='calendar' && <SalesCalendar {...ctx}/>}
+          {page==='routeSearch' && <RouteSearch {...ctx}/>}
+          {page==='companies' && <CompanyList {...ctx}/>}
+          {page==='contacts' && <ContactList {...ctx}/>}
+          {page==='reports' && <Reports {...ctx}/>}
+          {page==='settings' && <Settings {...ctx}/>}
+        </div>
+      </div>
+      {detailId && <DetailPanel {...ctx}/>}
+      {modal && <ModalWrapper {...ctx}/>}
+    </div>
+  );
+}
+
+// ─── SIDEBAR ───
+function Sidebar({page, setPage, data}) {
+  const menu = [
+    {section:'メイン'},
+    {key:'dashboard', icon:'📊', label:'ダッシュボード'},
+    {key:'calendar', icon:'📅', label:'カレンダー'},
+    {key:'routeSearch', icon:'🧭', label:'ルート検索'},
+    {section:'管理'},
+    {key:'companies', icon:'🏢', label:'営業先', badge: data.offices.length},
+    {section:'分析'},
+    {key:'reports', icon:'📈', label:'レポート'},
+    {key:'settings', icon:'⚙️', label:'設定'},
+  ];
+  return (
+    <nav className="sidebar">
+      <div className="sidebar-logo">
+        <span className="logo-text">営業管理</span>
+      </div>
+      <div className="sidebar-nav">
+        {menu.map((m,i) => m.section
+          ? <div key={i} className="nav-section"><div className="nav-section-label">{m.section}</div></div>
+          : <div key={m.key} className={`nav-item ${page===m.key?'active':''}`} onClick={()=>setPage(m.key)}>
+              <span className="nav-icon">{m.icon}</span>
+              <span className="nav-label">{m.label}</span>
+              {m.badge && <span className="badge">{m.badge}</span>}
+            </div>
+        )}
+      </div>
+      <div className="sidebar-footer">
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <span style={{width:7,height:7,borderRadius:'50%',background:db?'#22c55e':'#94a3b8',display:'inline-block'}}/>
+          <span>{db?'クラウド同期中':'ローカル保存'}</span>
+        </div>
+        <div style={{marginTop:2}}>営業管理 v1.5</div>
+      </div>
+    </nav>
+  );
+}
+
+// ─── TOPBAR ───
+function Topbar({page, search, setSearch, setModal}) {
+  const titles = {dashboard:'ダッシュボード',calendar:'カレンダー',routeSearch:'ルート検索',
+    companies:'営業先',contacts:'コンタクト',reports:'レポート',settings:'設定'};
+  return (
+    <div className="topbar">
+      <div className="topbar-title">{titles[page]||''}</div>
+      {page==='companies' && <div className="topbar-search"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="営業先を検索..." /></div>}
+      {page==='companies' && <button className="btn btn-primary" onClick={()=>setModal({type:'newOffice'})}>＋ 営業先追加</button>}
+      {page!=='companies' && <div style={{flex:1}}></div>}
+    </div>
+  );
+}
+
+// ─── DASHBOARD ───
+function Dashboard({data}) {
+  const todayStr = today();
+  const todayEvents = (data.calendarEvents||[]).filter(e=>e.date===todayStr);
+
+  // 今週（月曜〜日曜）の予定
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun
+  const monOffset = dow===0 ? -6 : 1-dow;
+  const monday = new Date(now); monday.setDate(now.getDate()+monOffset); monday.setHours(0,0,0,0);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  const toStr = d => d.toISOString().split('T')[0];
+  const monStr = toStr(monday), sunStr = toStr(sunday);
+  const weekEvents = (data.calendarEvents||[]).filter(e=>e.date>=monStr && e.date<=sunStr);
+
+  // 今月の予定
+  const ym = todayStr.slice(0,7);
+  const monthEvents = (data.calendarEvents||[]).filter(e=>e.date.startsWith(ym));
+
+  return (
+    <div>
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-label">本日の予定</div>
+          <div className="kpi-value" style={{color:'#7c3aed'}}>{todayEvents.length}</div>
+          <div className="kpi-sub">{todayStr.slice(5).replace('-','/')}の登録数</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">今週の予定</div>
+          <div className="kpi-value" style={{color:'#3b82f6'}}>{weekEvents.length}</div>
+          <div className="kpi-sub">{monStr.slice(5).replace('-','/')}〜{sunStr.slice(5).replace('-','/')}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">今月の予定</div>
+          <div className="kpi-value" style={{color:'#059669'}}>{monthEvents.length}</div>
+          <div className="kpi-sub">{ym.replace('-','/')}月</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">営業先数</div>
+          <div className="kpi-value">{data.offices.length}</div>
+          <div className="kpi-sub">登録済み事業所</div>
+        </div>
+      </div>
+      {(() => {
+        const next7 = [];
+        for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()+i);next7.push(d.toISOString().split('T')[0]);}
+        const dailyCounts = next7.map(d=>({date:d, count:(data.calendarEvents||[]).filter(e=>e.date===d).length}));
+        const maxDaily = Math.max(...dailyCounts.map(d=>d.count),1);
+        const dayNames = ['日','月','火','水','木','金','土'];
+        return (
+          <div className="chart-card">
+            <h3>今後7日間の営業予定数</h3>
+            <div style={{display:'flex',gap:12,alignItems:'flex-end',height:120,padding:'16px 0'}}>
+              {dailyCounts.map((d,i)=>{
+                const isToday = i===0;
+                const dow = new Date(d.date).getDay();
+                return (
+                  <div key={d.date} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
+                    <span style={{fontSize:11,fontWeight:700,color:isToday?'#7c3aed':'#374151'}}>{d.count}</span>
+                    <div style={{width:'100%',background:isToday?'linear-gradient(180deg,#7c3aed,#a78bfa)':'linear-gradient(180deg,#94a3b8,#cbd5e1)',borderRadius:4,height:`${Math.max(d.count/maxDaily*80,4)}px`}}></div>
+                    <span style={{fontSize:10,color:isToday?'#7c3aed':dow===0?'#ef4444':dow===6?'#3b82f6':'#9ca3af',fontWeight:isToday?700:400}}>{isToday?'今日':`${d.date.slice(5).replace('-','/')}(${dayNames[dow]})`}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── DEAL BOARD (Kanban) ───
+function DealBoard({data, updateDeal, setModal, setDetailId, search}) {
+  const [dragId, setDragId] = useState(null);
+  const [dragOverPhase, setDragOverPhase] = useState(null);
+
+  const phases = data.settings?.phases || DEFAULT_PHASES;
+  const activeDeals = data.deals.filter(d => !d.result);
+
+  const handleDragStart = (e, id) => { setDragId(id); e.dataTransfer.effectAllowed='move'; };
+  const handleDragOver = (e, phase) => { e.preventDefault(); setDragOverPhase(phase); };
+  const handleDrop = (e, phase) => {
+    e.preventDefault();
+    if(dragId) updateDeal(dragId, {phase});
+    setDragId(null); setDragOverPhase(null);
+  };
+
+  return (
+    <div>
+      <div className="filter-bar">
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:'newDeal'})}>＋ 新規案件</button>
+        <span style={{fontSize:12,color:'#9ca3af',marginLeft:8}}>ドラッグ＆ドロップでフェーズを変更</span>
+      </div>
+      <div className="kanban-container">
+        {phases.map(phase => {
+          const deals = activeDeals.filter(d => d.phase===phase)
+            .filter(d => !search || d.title?.includes(search) || data.offices.find(o=>o.id===d.officeId)?.name?.includes(search));
+          return (
+            <div key={phase} className="kanban-column"
+                 onDragOver={e=>handleDragOver(e,phase)} onDrop={e=>handleDrop(e,phase)}
+                 style={{outline: dragOverPhase===phase?'2px dashed #7c3aed':'none'}}>
+              <div className="kanban-header">
+                <span className="phase-name">{phase}</span>
+                <span className="phase-count">{deals.length}</span>
+              </div>
+              <div className="kanban-body">
+                {deals.map(deal => {
+                  const office = data.offices.find(o=>o.id===deal.officeId);
+                  const status = staleStatus(deal.lastActionDate);
+                  const days = daysSince(deal.lastActionDate);
+                  return (
+                    <div key={deal.id} className={`deal-card status-${status} ${dragId===deal.id?'dragging':''}`}
+                         draggable onDragStart={e=>handleDragStart(e,deal.id)}
+                         onClick={()=>setDetailId(deal.id)}>
+                      <div className="card-company">{office?.name||'未設定'}</div>
+                      <div className="card-title">{deal.title||'無題の案件'}</div>
+                      <div className="card-meta">
+                        <span>{deal.amount ? `¥${Number(deal.amount).toLocaleString()}` : ''}</span>
+                        <span className={`card-days ${status}`}>
+                          {days !== null ? `${days}日前` : '未対応'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+        {/* Result columns */}
+        {RESULTS.map(r => {
+          const deals = data.deals.filter(d=>d.result===r);
+          return (
+            <div key={r} className="kanban-column" style={{opacity:0.7, minWidth:200}}
+                 onDragOver={e=>{e.preventDefault(); setDragOverPhase(r);}} onDrop={e=>{e.preventDefault(); if(dragId) updateDeal(dragId,{result:r}); setDragId(null); setDragOverPhase(null);}}
+                 style={{outline: dragOverPhase===r?'2px dashed #059669':'none', opacity:0.7, minWidth:200}}>
+              <div className="kanban-header">
+                <span className="phase-name" style={{color:r==='受注'?'#059669':r==='失注'?'#ef4444':'#6b7280'}}>{r}</span>
+                <span className="phase-count">{deals.length}</span>
+              </div>
+              <div className="kanban-body">
+                {deals.slice(0,5).map(deal => {
+                  const office = data.offices.find(o=>o.id===deal.officeId);
+                  return (
+                    <div key={deal.id} className="deal-card" style={{borderLeftColor:r==='受注'?'#059669':'#ef4444',opacity:0.8}} onClick={()=>setDetailId(deal.id)}>
+                      <div className="card-company">{office?.name||'未設定'}</div>
+                      <div className="card-title">{deal.title||'無題の案件'}</div>
+                    </div>
+                  );
+                })}
+                {deals.length>5 && <p style={{textAlign:'center',fontSize:11,color:'#9ca3af'}}>他 {deals.length-5}件</p>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── DEAL LIST ───
+function DealList({data, setDetailId, setModal, search}) {
+  const filtered = data.deals.filter(d => !search || d.title?.includes(search) || data.offices.find(o=>o.id===d.officeId)?.name?.includes(search));
+  return (
+    <div>
+      <div className="filter-bar">
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:'newDeal'})}>＋ 新規案件</button>
+      </div>
+      <table className="data-table">
+        <thead><tr><th>案件名</th><th>営業先</th><th>フェーズ</th><th>金額</th><th>最終対応</th><th>結果</th></tr></thead>
+        <tbody>
+          {filtered.map(d => {
+            const office = data.offices.find(o=>o.id===d.officeId);
+            const status = staleStatus(d.lastActionDate);
+            const days = daysSince(d.lastActionDate);
+            return (
+              <tr key={d.id} onClick={()=>setDetailId(d.id)} style={{cursor:'pointer'}}>
+                <td className="company-name">{d.title||'無題'}</td>
+                <td>{office?.name||'-'}</td>
+                <td>{d.result || d.phase}</td>
+                <td>{d.amount ? `¥${Number(d.amount).toLocaleString()}` : '-'}</td>
+                <td><span className={`card-days ${status}`} style={{fontSize:11}}>{days!==null?`${days}日前`:'未対応'}</span></td>
+                <td>{d.result || '-'}</td>
+              </tr>
+            );
+          })}
+          {filtered.length===0 && <tr><td colSpan="6" style={{textAlign:'center',color:'#9ca3af',padding:40}}>案件がありません</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── COMPANY LIST (営業先) ───
+function CompanyList({data, setDetailId, search, upData}) {
+  const [cat, setCat] = useState('all');
+  const [importMsg, setImportMsg] = useState('');
+  const fileRef = useRef();
+  const categories = [...new Set(data.offices.map(o=>o.category))];
+  const categoryColors = data.settings?.categoryColors || {};
+  const filtered = data.offices
+    .filter(o => cat==='all' || o.category===cat)
+    .filter(o => !search || o.name.includes(search) || o.address.includes(search));
+
+  const importExcel = (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, {type:'binary'});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {defval:''});
+        const existingNames = new Set(data.offices.map(o=>o.name));
+        const newOffices = [];
+        rows.forEach(r => {
+          const name = r['事業所名'] || r['名前'] || r['name'] || r['Name'] || '';
+          if(!name || existingNames.has(name)) return;
+          existingNames.add(name);
+          newOffices.push({
+            id: uid(),
+            name,
+            address: r['住所'] || r['address'] || r['Address'] || '',
+            phone: String(r['電話番号'] || r['phone'] || r['Phone'] || r['TEL'] || ''),
+            org: r['法人名'] || r['法人'] || r['org'] || '',
+            category: r['種別'] || r['category'] || r['カテゴリ'] || 'その他',
+            email: r['メールアドレス'] || r['email'] || r['Email'] || '',
+            contacts: [], visits: [], referrals: [],
+          });
+        });
+        if(newOffices.length > 0) {
+          upData(d => ({...d, offices: [...d.offices, ...newOffices]}));
+          setImportMsg(`✅ ${newOffices.length}件の新規事業所を追加しました`);
+        } else {
+          setImportMsg('ℹ️ 新規の事業所はありませんでした（すべて登録済み）');
+        }
+        setTimeout(()=>setImportMsg(''), 4000);
+      } catch(err) { setImportMsg('❌ ファイルを読み込めませんでした: ' + err.message); }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = '';
+  };
+
+  const exportExcel = () => {
+    const rows = data.offices.map(o => {
+      const visits = (data.calendarEvents||[]).filter(e=>e.officeId===o.id);
+      const totalVisits = visits.length;
+      const greetedCount = visits.filter(v=>v.visitResult==='対面挨拶').length;
+      const pamphletCount = visits.filter(v=>v.visitResult==='パンフレット・名刺のみお渡し').length;
+      const absentCount = visits.filter(v=>v.visitResult==='不在').length;
+      const lastVisit = visits.sort((a,b)=>b.date.localeCompare(a.date))[0];
+      const refs = o.referrals||[];
+      const acceptedRef = refs.filter(r=>r.status==='受入済').length;
+      const adjustingRef = refs.filter(r=>r.status==='調整中').length;
+      const days = daysSinceLastVisit(o.id, data.calendarEvents);
+      return {
+        '事業所名': o.name, '種別': o.category, '住所': o.address,
+        '電話番号': o.phone, 'メールアドレス': o.email||'', '法人名': o.org,
+        '最終訪問日': lastVisit ? lastVisit.date : '',
+        '経過日数': days!==null ? days+'日' : '未訪問',
+        '累計訪問回数': totalVisits,
+        '対面挨拶': greetedCount,
+        'パンフレット・名刺のみお渡し': pamphletCount,
+        '不在': absentCount,
+        '紹介利用者数': refs.length,
+        '受入済': acceptedRef,
+        '調整中': adjustingRef,
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '営業先');
+    XLSX.writeFile(wb, `ここん営業先_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  return (
+    <div>
+      <div className="filter-bar">
+        <button className="btn btn-ghost btn-sm" onClick={()=>fileRef.current?.click()}>📥 Excelインポート</button>
+        <button className="btn btn-ghost btn-sm" onClick={exportExcel} style={{background:'#ede9fe',color:'#6d28d9',borderColor:'#c4b5fd'}}>📤 詳細エクスポート</button>
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{display:'none'}} onChange={importExcel}/>
+        {importMsg && <span style={{fontSize:12,marginLeft:8}}>{importMsg}</span>}
+        <div style={{flex:1}}></div>
+        <div className="filter-chip active" onClick={()=>setCat('all')} style={cat==='all'?{}:{background:'#fff',color:'#6b7280'}}>すべて ({data.offices.length})</div>
+        {categories.map(c => {
+          const color = getCategoryColor(c, categoryColors);
+          const isActive = cat===c;
+          return (
+            <div key={c} onClick={()=>setCat(c)} style={{padding:'5px 12px',borderRadius:20,fontSize:12,fontWeight:500,cursor:'pointer',border:`1px solid ${color}`,background:isActive?color:'#fff',color:isActive?'#fff':color,transition:'all 0.15s'}}>
+              {c} ({data.offices.filter(o=>o.category===c).length})
+            </div>
+          );
+        })}
+      </div>
+      <table className="data-table" style={{tableLayout:'fixed',width:'100%'}}>
+        <thead><tr><th style={{width:'22%'}}>事業所名</th><th style={{width:'12%'}}>種別</th><th style={{width:'10%'}}>最終訪問</th><th style={{width:'26%'}}>住所</th><th style={{width:'14%'}}>電話番号</th><th style={{width:'16%'}}>法人</th></tr></thead>
+        <tbody>
+          {filtered.map(o => {
+            const days = daysSinceLastVisit(o.id, data.calendarEvents);
+            const catColor = getCategoryColor(o.category, categoryColors);
+            return (
+            <tr key={o.id}>
+              <td className="company-name" onClick={()=>setDetailId('office-'+o.id)} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.name}</td>
+              <td style={{whiteSpace:'nowrap'}}><span style={{fontSize:11,background:catColor+'20',color:catColor,padding:'2px 8px',borderRadius:12,whiteSpace:'nowrap',border:`1px solid ${catColor}`}}>{o.category}</span></td>
+              <td style={{textAlign:'center'}}><DaysBadge days={days}/></td>
+              <td style={{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.address}</td>
+              <td style={{whiteSpace:'nowrap'}}>{o.phone && <a href={`tel:${o.phone}`} style={{color:'#7c3aed',textDecoration:'none'}}>{o.phone}</a>}</td>
+              <td style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.org}</td>
+            </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      {filtered.length===0 && <p style={{textAlign:'center',padding:40,color:'#9ca3af',fontSize:13}}>該当する営業先がありません</p>}
+    </div>
+  );
+}
+
+// ─── CONTACT LIST ───
+function ContactList({allContacts, setDetailId, setModal, search}) {
+  const filtered = allContacts.filter(c => !search || (c.name||'').includes(search) || (c.role||'').includes(search) || (c.officeName||'').includes(search));
+  return (
+    <div>
+      <div className="filter-bar">
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:'newContact'})}>＋ コンタクト追加</button>
+        <button className="btn btn-ghost btn-sm" onClick={()=>setModal({type:'scanCard'})}>📷 名刺スキャン</button>
+      </div>
+      <div>
+        {filtered.slice(0,50).map((c,i) => (
+          <div key={i} className="contact-card" onClick={()=>c.officeId && setDetailId('office-'+c.officeId)}>
+            <div className="contact-avatar">{(c.name||'?')[0]}</div>
+            <div className="contact-info">
+              <div className="name">{c.name||'名前なし'}</div>
+              <div className="role">{c.role||''}</div>
+              <div className="company">{c.officeName||''}</div>
+            </div>
+            <div className="contact-links">
+              {c.phone && <a href={`tel:${c.phone}`} onClick={e=>e.stopPropagation()}>📞</a>}
+              {c.email && <a href={`mailto:${c.email}`} onClick={e=>e.stopPropagation()}>✉️</a>}
+            </div>
+          </div>
+        ))}
+        {filtered.length===0 && <p style={{textAlign:'center',padding:40,color:'#9ca3af'}}>コンタクトがありません</p>}
+        {filtered.length>50 && <p style={{textAlign:'center',padding:16,color:'#9ca3af',fontSize:12}}>他 {filtered.length-50}件</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── ACTION LIST ───
+function ActionList({data, setModal, search}) {
+  const filtered = data.actions.filter(a => !search || a.title?.includes(search) || a.memo?.includes(search));
+  return (
+    <div>
+      <div className="filter-bar">
+        <button className="btn btn-primary btn-sm" onClick={()=>setModal({type:'newAction'})}>＋ アクション追加</button>
+      </div>
+      <div style={{background:'#fff',borderRadius:12,padding:20,boxShadow:'0 1px 3px rgba(0,0,0,0.06)'}}>
+        {filtered.map(a => {
+          const office = data.offices.find(o=>o.id===a.officeId);
+          return (
+            <div key={a.id} className="action-item">
+              <div className="action-dot"></div>
+              <div className="action-content">
+                <div className="action-title">{a.title}</div>
+                <div className="action-desc">{office?.name||''} {a.memo ? `- ${a.memo}` : ''}</div>
+                <div className="action-time">{a.date} {a.type ? `（${a.type}）` : ''}</div>
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length===0 && <p style={{textAlign:'center',padding:40,color:'#9ca3af'}}>アクションがありません</p>}
+      </div>
+    </div>
+  );
+}
+
+// ─── ROUTE SEARCH ───
+function calcRouteDist(a, b) {
+  const R = 6371;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const x = Math.sin(dLat/2)**2 + Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1-x));
+}
+
+function tspOptimize(offices, startLat, startLng) {
+  if(offices.length===0) return [];
+  if(offices.length===1) return offices.map(o=>({...o, distFromPrev: calcRouteDist({lat:startLat,lng:startLng},o)}));
+  if(offices.length > 8) {
+    const remaining=[...offices],result=[];let current={lat:startLat,lng:startLng};
+    while(remaining.length>0){let m=Infinity,mi=0;remaining.forEach((o,i)=>{const d=calcRouteDist(current,o);if(d<m){m=d;mi=i;}});const n=remaining.splice(mi,1)[0];result.push({...n,distFromPrev:m});current=n;}
+    return result;
+  }
+  const indices=offices.map((_,i)=>i),perms=[];
+  function perm(arr,l=0){if(l===arr.length-1){perms.push([...arr]);return;}for(let i=l;i<arr.length;i++){[arr[l],arr[i]]=[arr[i],arr[l]];perm(arr,l+1);[arr[l],arr[i]]=[arr[i],arr[l]];}}
+  perm(indices);
+  let best=Infinity,bp=null;const s={lat:startLat,lng:startLng};
+  for(const p of perms){let d=0,pr=s;for(const idx of p){d+=calcRouteDist(pr,offices[idx]);pr=offices[idx];if(d>=best)break;}if(d<best){best=d;bp=p;}}
+  const result=[];let pr=s;for(const idx of bp){const d=calcRouteDist(pr,offices[idx]);result.push({...offices[idx],distFromPrev:d});pr=offices[idx];}
+  return result;
+}
+
+function RouteSearch({data}) {
+  const [selected, setSelected] = useState([]);
+  const [searchQ, setSearchQ] = useState('');
+  const [optimized, setOptimized] = useState(null);
+  const [gps, setGps] = useState({status:'idle',lat:null,lng:null,error:null});
+
+  const categoryColors = data.settings?.categoryColors || {};
+
+  const requestGPS = () => {
+    if(!navigator.geolocation){setGps({status:'error',lat:null,lng:null,error:'GPS非対応'});return;}
+    setGps(p=>({...p,status:'loading'}));
+    navigator.geolocation.getCurrentPosition(
+      pos=>setGps({status:'ok',lat:pos.coords.latitude,lng:pos.coords.longitude,error:null}),
+      err=>setGps({status:'error',lat:null,lng:null,error:err.code===1?'位置情報の許可が必要です':'位置情報を取得できませんでした'}),
+      {enableHighAccuracy:true,timeout:10000}
+    );
+  };
+
+  const filtered = data.offices.filter(o => !searchQ || o.name.includes(searchQ));
+  const toggleOffice = id => { setSelected(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]); setOptimized(null); };
+
+  const runOptimize = () => {
+    const offices = selected.map(id => data.offices.find(o=>o.id===id)).filter(Boolean).map(o => ({...o, lat: o.lat||35.298, lng: o.lng||136.800}));
+    const startLat = gps.lat || 35.298;
+    const startLng = gps.lng || 136.800;
+    setOptimized(tspOptimize(offices, startLat, startLng));
+  };
+
+  const openMapRoute = () => {
+    if(!optimized||optimized.length===0)return;
+    const wps = optimized.map(o=>encodeURIComponent(o.name+' '+(o.address||'')));
+    const dest=wps[wps.length-1];
+    const mid=wps.slice(0,-1).join('/');
+    window.open(`https://www.google.com/maps/dir/現在地/${mid?mid+'/':''}${dest}`,'_blank');
+  };
+
+  const totalDist = optimized ? optimized.reduce((s,o)=>s+o.distFromPrev,0) : 0;
+
+  return (
+    <div style={{maxWidth:700}}>
+      <div className="chart-card" style={{marginBottom:16}}>
+        <h3>📍 出発地点（現在地）</h3>
+        {gps.status==='idle' && <div><p style={{fontSize:12,color:'#6b7280',marginBottom:10}}>GPSで現在地を取得するとルート計算の精度が上がります。</p><button className="btn btn-primary btn-sm" onClick={requestGPS}>📍 現在地を取得</button></div>}
+        {gps.status==='loading' && <div className="gps-status loading">📡 位置情報を取得中...</div>}
+        {gps.status==='ok' && <div className="gps-status ok">✅ 現在地を取得しました（{gps.lat.toFixed(4)}, {gps.lng.toFixed(4)}）</div>}
+        {gps.status==='error' && <div><div className="gps-status error">⚠️ {gps.error}</div><p style={{fontSize:11,color:'#6b7280',marginTop:8}}>Googleマップでは「現在地」から自動ルート計算されます。</p></div>}
+      </div>
+
+      <div className="chart-card" style={{marginBottom:16}}>
+        <h3>🏢 営業先を選択（{selected.length}件）</h3>
+        <input value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="事業所名で検索..." style={{width:'100%',padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,marginBottom:12}}/>
+
+        {selected.length>0 && (
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:'#6b7280',marginBottom:6,fontWeight:600}}>選択済み（{selected.length}件）</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {selected.map(id => {
+                const o = data.offices.find(x=>x.id===id);
+                if(!o) return null;
+                return (
+                  <div key={id} style={{display:'flex',alignItems:'center',gap:6,background:'#ede9fe',color:'#6d28d9',padding:'4px 10px',borderRadius:16,fontSize:12,fontWeight:500}}>
+                    <span>{o.name}</span>
+                    <button onClick={(e)=>{e.stopPropagation();toggleOffice(id);}} style={{background:'none',border:'none',cursor:'pointer',color:'#7c3aed',fontSize:14,padding:0,lineHeight:1}}>✕</button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div style={{maxHeight:260,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+          {filtered.filter(o=>!selected.includes(o.id)).map(o => {
+            const catColor = getCategoryColor(o.category, categoryColors);
+            return (
+            <div key={o.id} className="route-check" onClick={()=>toggleOffice(o.id)}>
+              <input type="checkbox" checked={false} onChange={()=>{}}/>
+              <div style={{flex:1,fontSize:13,fontWeight:500}}>{o.name}</div>
+              <span style={{fontSize:10,background:catColor+'20',color:catColor,padding:'2px 8px',borderRadius:10,border:`1px solid ${catColor}`}}>{o.category}</span>
+            </div>
+            );
+          })}
+          {filtered.filter(o=>!selected.includes(o.id)).length===0 && <p style={{textAlign:'center',padding:16,color:'#9ca3af',fontSize:12}}>{searchQ?'該当する営業先がありません':'すべて選択済み'}</p>}
+        </div>
+        <div style={{display:'flex',gap:8,marginTop:16}}>
+          <button className="btn btn-primary" onClick={runOptimize} disabled={selected.length<2}>🧭 最適ルートを計算（{selected.length}件）</button>
+          {selected.length>0 && <button className="btn btn-ghost btn-sm" onClick={()=>{setSelected([]);setOptimized(null);}}>クリア</button>}
+        </div>
+      </div>
+
+      {optimized && (
+        <div className="chart-card">
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+            <h3 style={{margin:0}}>✅ 最適ルート結果</h3>
+            <button className="btn btn-primary btn-sm" onClick={openMapRoute} style={{background:'#4285F4'}}>🗺️ Googleマップで開く</button>
+          </div>
+          <p style={{fontSize:12,color:'#6b7280',marginBottom:16}}>
+            総移動距離（直線）: <strong style={{color:'#7c3aed',fontSize:14}}>{totalDist.toFixed(1)} km</strong>　|　{optimized.length}件を最短距離で回る順番
+          </p>
+          <div className="route-result">
+            <div className="route-step">
+              <div className="step-num start">出</div>
+              <div style={{flex:1}}><div style={{fontSize:13,fontWeight:600,color:'#1a1a2e'}}>📍 現在地</div><div style={{fontSize:11,color:'#6b7280',marginTop:2}}>{gps.status==='ok'?`GPS: ${gps.lat.toFixed(4)}, ${gps.lng.toFixed(4)}`:'Googleマップで自動取得'}</div></div>
+            </div>
+            {optimized.map((o,i) => (
+              <div key={o.id} className="route-step">
+                <div className="step-num">{i+1}</div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#1a1a2e'}}>{o.name}</div>
+                  <div style={{fontSize:11,color:'#6b7280',marginTop:2}}>{o.address||o.category}</div>
+                  <div style={{fontSize:11,color:'#7c3aed',fontWeight:600,marginTop:2}}>↑ 直線距離 約 {o.distFromPrev.toFixed(1)} km</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── REPORTS ───
+function Reports({data}) {
+  const catCounts = {};
+  data.offices.forEach(o => { catCounts[o.category] = (catCounts[o.category]||0)+1; });
+  const todayStr = today();
+  const toStr = d => d.toISOString().split('T')[0];
+
+  // 今週（月〜日）
+  const now = new Date();
+  const dow = now.getDay();
+  const monOff = dow===0 ? -6 : 1-dow;
+  const thisMon = new Date(now); thisMon.setDate(now.getDate()+monOff); thisMon.setHours(0,0,0,0);
+  const thisSun = new Date(thisMon); thisSun.setDate(thisMon.getDate()+6);
+  const thisMonStr = toStr(thisMon), thisSunStr = toStr(thisSun);
+
+  // 先週
+  const lastMon = new Date(thisMon); lastMon.setDate(thisMon.getDate()-7);
+  const lastSun = new Date(lastMon); lastSun.setDate(lastMon.getDate()+6);
+  const lastMonStr = toStr(lastMon), lastSunStr = toStr(lastSun);
+
+  // 今月・先月
+  const thisYM = todayStr.slice(0,7);
+  const lastMonthD = new Date(now.getFullYear(), now.getMonth()-1, 1);
+  const lastYM = `${lastMonthD.getFullYear()}-${String(lastMonthD.getMonth()+1).padStart(2,'0')}`;
+
+  // 集計関数
+  const eventsInRange = (from, to) => (data.calendarEvents||[]).filter(e=>e.date>=from && e.date<=to);
+  const eventsInMonth = ym => (data.calendarEvents||[]).filter(e=>e.date.startsWith(ym));
+  const referralsInRange = (from, to) => {
+    let count = 0;
+    data.offices.forEach(o => (o.referrals||[]).forEach(r => { if(r.date>=from && r.date<=to) count++; }));
+    return count;
+  };
+  const referralsInMonth = ym => {
+    let count = 0;
+    data.offices.forEach(o => (o.referrals||[]).forEach(r => { if(r.date && r.date.startsWith(ym)) count++; }));
+    return count;
+  };
+
+  const thisWeekEv = eventsInRange(thisMonStr, thisSunStr).length;
+  const thisWeekRef = referralsInRange(thisMonStr, thisSunStr);
+  const lastWeekEv = eventsInRange(lastMonStr, lastSunStr).length;
+  const lastWeekRef = referralsInRange(lastMonStr, lastSunStr);
+  const thisMonthEv = eventsInMonth(thisYM).length;
+  const thisMonthRef = referralsInMonth(thisYM);
+  const lastMonthEv = eventsInMonth(lastYM).length;
+  const lastMonthRef = referralsInMonth(lastYM);
+
+  // スタッフ別 今後の営業予定件数
+  const staffFutureCounts = (data.staff||[]).map(s=>({name:s.name, count:(data.calendarEvents||[]).filter(e=>e.staffId===s.id && e.date>=todayStr).length}));
+  const maxStaff = Math.max(...staffFutureCounts.map(s=>s.count),1);
+
+  const CompareCard = ({label, period, evCount, refCount, prevEv, prevRef}) => {
+    const evDiff = evCount - (prevEv||0);
+    const refDiff = refCount - (prevRef||0);
+    return (
+      <div className="chart-card" style={{flex:1}}>
+        <h3>{label}</h3>
+        <p style={{fontSize:11,color:'#9ca3af',marginTop:-8,marginBottom:12}}>{period}</p>
+        <div style={{display:'flex',gap:16}}>
+          <div style={{flex:1,textAlign:'center'}}>
+            <div style={{fontSize:28,fontWeight:800,color:'#7c3aed'}}>{evCount}</div>
+            <div style={{fontSize:11,color:'#6b7280'}}>営業数</div>
+            {prevEv!==undefined && <div style={{fontSize:11,color:evDiff>0?'#059669':evDiff<0?'#ef4444':'#9ca3af',marginTop:2}}>{evDiff>0?`+${evDiff}`:evDiff===0?'±0':evDiff} vs前期</div>}
+          </div>
+          <div style={{flex:1,textAlign:'center'}}>
+            <div style={{fontSize:28,fontWeight:800,color:'#3b82f6'}}>{refCount}</div>
+            <div style={{fontSize:11,color:'#6b7280'}}>新規利用者数</div>
+            {prevRef!==undefined && <div style={{fontSize:11,color:refDiff>0?'#059669':refDiff<0?'#ef4444':'#9ca3af',marginTop:2}}>{refDiff>0?`+${refDiff}`:refDiff===0?'±0':refDiff} vs前期</div>}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:16}}>
+        <CompareCard label="今週" period={`${thisMonStr.slice(5).replace('-','/')}〜${thisSunStr.slice(5).replace('-','/')}`} evCount={thisWeekEv} refCount={thisWeekRef} prevEv={lastWeekEv} prevRef={lastWeekRef}/>
+        <CompareCard label="先週" period={`${lastMonStr.slice(5).replace('-','/')}〜${lastSunStr.slice(5).replace('-','/')}`} evCount={lastWeekEv} refCount={lastWeekRef}/>
+        <CompareCard label="今月" period={`${thisYM.replace('-','/')}月`} evCount={thisMonthEv} refCount={thisMonthRef} prevEv={lastMonthEv} prevRef={lastMonthRef}/>
+      </div>
+      <div className="chart-row" style={{marginBottom:16}}>
+        <div className="chart-card">
+          <h3>営業先カテゴリ</h3>
+          {Object.entries(catCounts).map(([cat,count]) => (
+            <div key={cat} className="funnel-bar">
+              <div className="funnel-label">{cat}</div>
+              <div className="funnel-fill" style={{width:`${count/Math.max(...Object.values(catCounts),1)*100}%`}}></div>
+              <span className="funnel-count">{count}</span>
+            </div>
+          ))}
+          {Object.keys(catCounts).length===0 && <p style={{color:'#9ca3af',fontSize:13}}>営業先がありません</p>}
+        </div>
+        <div className="chart-card">
+          <h3>スタッフ別 今後の営業予定件数</h3>
+          {staffFutureCounts.map(s => (
+            <div key={s.name} className="funnel-bar">
+              <div className="funnel-label">{s.name}</div>
+              <div className="funnel-fill" style={{width:`${s.count/maxStaff*100}%`,background:'linear-gradient(90deg,#059669,#34d399)'}}></div>
+              <span className="funnel-count">{s.count}</span>
+            </div>
+          ))}
+          {staffFutureCounts.length===0 && <p style={{color:'#9ca3af',fontSize:13}}>スタッフが登録されていません</p>}
+        </div>
+      </div>
+      <div className="chart-card">
+        <h3>先月実績</h3>
+        <p style={{fontSize:11,color:'#9ca3af',marginTop:-8,marginBottom:12}}>{lastYM.replace('-','/')}月</p>
+        <div style={{display:'flex',gap:24}}>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:32,fontWeight:800,color:'#6b7280'}}>{lastMonthEv}</div>
+            <div style={{fontSize:12,color:'#6b7280'}}>営業数</div>
+          </div>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:32,fontWeight:800,color:'#6b7280'}}>{lastMonthRef}</div>
+            <div style={{fontSize:12,color:'#6b7280'}}>新規利用者数</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SALES CALENDAR (営業カレンダー) ───
+function SalesCalendar({data, upData, setModal}) {
+  const [currentDate, setCurrentDate] = useState(today());
+  const [dragData, setDragData] = useState(null);
+  const [calModal, setCalModal] = useState(null);
+  const dateRef = useRef();
+
+  const staff = data.staff || [];
+  const events = (data.calendarEvents || []).filter(e=>e.date===currentDate);
+  const unassigned = data.offices.filter(o => !(data.calendarEvents||[]).some(e=>e.officeId===o.id && e.date===currentDate));
+
+  const shiftDate = n => { const d=new Date(currentDate); d.setDate(d.getDate()+n); setCurrentDate(d.toISOString().split('T')[0]); };
+
+  const handleDrop = (staffId, hour, quarter) => {
+    if(!dragData) return;
+    const startMin = hour*60 + quarter*15;
+    const durMin = (dragData.duration||0.25)*60;
+    const endMin = startMin + durMin;
+    const toTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+    if(dragData.type==='unassigned') {
+      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),officeId:dragData.officeId,staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'営業'}]}));
+    } else if(dragData.type==='move') {
+      upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===dragData.eventId?{...e,staffId,startTime:toTime(startMin),endTime:toTime(endMin)}:e)}));
+    } else if(dragData.type==='visitor') {
+      // 複数の利用者訪問イベントをカレンダーに割り当て
+      if(dragData.eventIds) {
+        let offsetMin = startMin;
+        upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>{
+          if(dragData.eventIds.includes(e.id)) {
+            const dur = (e.endTime.split(':')[0]*60 + parseInt(e.endTime.split(':')[1])) - (e.startTime.split(':')[0]*60 + parseInt(e.startTime.split(':')[1]));
+            const result = {...e, staffId, startTime:toTime(offsetMin), endTime:toTime(offsetMin+dur)};
+            offsetMin += dur + 15; // Add 15 min gap
+            return result;
+          }
+          return e;
+        })}));
+      }
+    } else if(dragData.type==='visitorCreate') {
+      // 新しい利用者訪問予定を作成
+      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'利用者訪問',visitorName:'',visitorPhone:''}]}));
+    }
+    setDragData(null);
+  };
+
+  if(staff.length===0) return (
+    <div style={{padding:40,textAlign:'center'}}>
+      <p style={{fontSize:16,fontWeight:700,color:'#374151',marginBottom:8}}>📅 カレンダー登録</p>
+      <p style={{fontSize:13,color:'#6b7280',marginBottom:16}}>まず設定画面からスタッフを追加してください。</p>
+      <button className="btn btn-primary" onClick={()=>upData(d=>({...d}))}>設定へ</button>
+    </div>
+  );
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
+      <div className="cal-controls">
+        <div className="date-nav">
+          <button onClick={()=>shiftDate(-1)}>◀</button>
+          <div className="date-label" style={{position:'relative',cursor:'pointer'}} onClick={()=>dateRef.current?.showPicker?.()}>
+            {fmtDate(currentDate)}
+            <input ref={dateRef} type="date" value={currentDate} onChange={e=>{if(e.target.value) setCurrentDate(e.target.value);}} style={{position:'absolute',top:0,left:0,width:'100%',height:'100%',opacity:0,cursor:'pointer'}}/>
+          </div>
+          <button onClick={()=>shiftDate(1)}>▶</button>
+        </div>
+        <button className="today-btn" onClick={()=>setCurrentDate(today())}>今日</button>
+        <div style={{flex:1}}></div>
+        <button className="btn btn-primary btn-sm" onClick={()=>setCalModal({type:'add'})}>＋ 予定追加</button>
+      </div>
+      <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+        <CalendarGrid staff={staff} events={events} offices={data.offices} categoryColors={data.settings?.categoryColors||{}} onDrop={handleDrop} dragData={dragData} setDragData={setDragData} onClickEvent={ev=>setCalModal({type:'edit',event:ev})}/>
+        <CalUnassigned offices={data.offices} categoryColors={data.settings?.categoryColors||{}} setDragData={setDragData} currentDate={currentDate} calendarEvents={data.calendarEvents||[]}/>
+      </div>
+      {calModal && <CalEventModal modal={calModal} setModal={setCalModal} staff={staff} offices={data.offices} calendarEvents={data.calendarEvents||[]} upData={upData} currentDate={currentDate}/>}
+    </div>
+  );
+}
+
+function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData, setDragData, onClickEvent}) {
+  const gridRef = useRef();
+  const cols = staff.length;
+  const timeToMin = t => { const [h,m]=t.split(':').map(Number); return h*60+m; };
+  const HEADER_H = 36;
+
+  useEffect(()=>{ if(gridRef.current) gridRef.current.scrollTop = 8*4*CAL_CELL_H; },[]);
+
+  return (
+    <div className="cal-wrapper" ref={gridRef}>
+      <div className="cal-grid" style={{display:'grid',gridTemplateColumns:`72px repeat(${cols}, minmax(220px, 1fr))`,width:'100%'}}>
+        <div className="cal-corner" style={{height:HEADER_H}}></div>
+        {staff.map(s=>{
+          const sEvents = events.filter(e=>e.staffId===s.id).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+          const openMap = () => {
+            if(sEvents.length===0) { alert('この日の予定がありません'); return; }
+            const waypoints = sEvents.map(e=>{
+              const o = offices.find(x=>x.id===e.officeId);
+              return o ? encodeURIComponent(o.name + ' ' + (o.address||'')) : null;
+            }).filter(Boolean);
+            if(waypoints.length===0) return;
+            const dest = waypoints[waypoints.length-1];
+            const wps = waypoints.slice(0,-1).join('/');
+            const url = `https://www.google.com/maps/dir/現在地/${wps?wps+'/':''}${dest}`;
+            window.open(url,'_blank');
+          };
+          return (
+          <div key={s.id} className="cal-staff-header" style={{height:HEADER_H,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+            <div className="staff-name">{s.name}</div>
+            <button onClick={openMap} title="Googleマップでルート表示" style={{background:'none',border:'none',cursor:'pointer',fontSize:14,padding:0,lineHeight:1,opacity:sEvents.length>0?1:0.3}}>🗺️</button>
+          </div>
+          );
+        })}
+        {CAL_HOURS.map(h=>(
+          <React.Fragment key={h}>
+            {h===24 ? (
+              <React.Fragment>
+                <div className="cal-time" style={{height:CAL_CELL_H}}>24:00</div>
+                {staff.map(s=><div key={`${s.id}-24`} className="cal-cell hour-line" style={{height:CAL_CELL_H}}/>)}
+              </React.Fragment>
+            ) : [0,1,2,3].map(q=>(
+              <React.Fragment key={q}>
+                <div className="cal-time" style={{height:CAL_CELL_H}}>{q===0?`${String(h).padStart(2,'0')}:00`:''}</div>
+                {staff.map(s=>(
+                  <CellSlot key={`${s.id}-${h}-${q}`} staffId={s.id} hour={h} quarter={q} onDrop={onDrop} dragData={dragData} isHourLine={q===0} isHalfLine={q===2}/>
+                ))}
+              </React.Fragment>
+            ))}
+          </React.Fragment>
+        ))}
+      </div>
+      {staff.map((s,sIdx)=>{
+        const sEvents = events.filter(e=>e.staffId===s.id);
+        return sEvents.map(ev=>{
+          const isVisitor = !ev.officeId && ev.visitType === '利用者訪問';
+          const office = isVisitor ? null : offices.find(o=>o.id===ev.officeId);
+          if(!isVisitor && !office) return null;
+          const startMin=timeToMin(ev.startTime), endMin=timeToMin(ev.endTime);
+          const top = HEADER_H + startMin*(CAL_CELL_H/15);
+          const height = Math.max((endMin-startMin)*(CAL_CELL_H/15), CAL_CELL_H);
+          const colW = gridRef.current ? (gridRef.current.scrollWidth-72)/cols : 220;
+          const left = 72 + sIdx*colW + 3;
+          const color = isVisitor ? '#eab308' : getCategoryColor(office.category, categoryColors);
+          const bgColor = color + '20'; // Add transparency
+          return (
+            <div key={ev.id} className={dragData?.eventId===ev.id?'dragging':''}
+              style={{top,height,left,width:colW-6,position:'absolute',borderRadius:6,padding:'4px 8px',cursor:'grab',fontSize:11,overflow:'hidden',zIndex:5,transition:'box-shadow 0.15s,transform 0.15s',border:`none`,background:bgColor,borderLeft:`3px solid ${color}`}} draggable
+              onDragStart={e=>{setDragData({type:'move',eventId:ev.id,duration:(endMin-startMin)/60});e.dataTransfer.effectAllowed='move';}}
+              onDragEnd={()=>setDragData(null)}
+              onMouseEnter={e=>{e.target.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';e.target.style.transform='scale(1.02)';e.target.style.zIndex='10';}}
+              onMouseLeave={e=>{e.target.style.boxShadow='none';e.target.style.transform='scale(1)';e.target.style.zIndex='5';}}
+              onClick={()=>onClickEvent(ev)}>
+              <div style={{fontWeight:700,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?`${ev.visitorName||'利用者'}（利用者訪問）`:`${office.name}${ev.visitResult&&ev.visitResult!=='未記録'?` [${ev.visitResult}]`:''}`}</div>
+              {height>=25 && <div style={{color:'#6b7280',fontSize:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?ev.visitorPhone||'':office.category}</div>}
+              {height>=40 && <div style={{color:'#9ca3af',fontSize:10,marginTop:1}}>{ev.startTime}〜{ev.endTime} {!isVisitor && ev.contactPerson&&`・${ev.contactPerson}`} {ev.memo&&`・${ev.memo}`}</div>}
+            </div>
+          );
+        });
+      })}
+    </div>
+  );
+}
+
+function CellSlot({staffId, hour, quarter, onDrop, dragData, isHourLine, isHalfLine}) {
+  const [over, setOver] = useState(false);
+  return (
+    <div className={`cal-cell ${isHourLine?'hour-line':''} ${isHalfLine?'half-line':''} ${over?'drag-over':''}`}
+      style={{height:CAL_CELL_H}}
+      onDragOver={e=>{e.preventDefault();setOver(true);}}
+      onDragLeave={()=>setOver(false)}
+      onDrop={e=>{e.preventDefault();setOver(false);onDrop(staffId,hour,quarter);}}
+    />
+  );
+}
+
+function CalUnassigned({offices, categoryColors, setDragData, currentDate, calendarEvents}) {
+  const [q, setQ] = useState('');
+  const catColor = c => getCategoryColor(c, categoryColors);
+  const filtered = offices.filter(o => !q || o.name.includes(q) || (o.category||'').includes(q));
+
+  return (
+    <div className="unassigned-panel">
+      {/* 利用者訪問新規作成カード */}
+      <div style={{marginBottom:12}}>
+        <div className="unassigned-body">
+          <div className="unassigned-card" draggable
+            onDragStart={e=>{setDragData({type:'visitorCreate',duration:1});e.dataTransfer.effectAllowed='copy';}}
+            style={{borderLeftColor:'#eab308'}}>
+            <div className="uc-name" style={{color:'#92400e'}}>利用者訪問</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 営業先セクション */}
+      <div>
+        <div className="unassigned-header">🏢 営業先 ({offices.length})</div>
+        <div style={{padding:'8px 8px 0'}}>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="名前で検索..." style={{width:'100%',padding:'6px 10px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12}}/>
+        </div>
+        <div className="unassigned-body">
+          {filtered.map(o=>(
+            <div key={o.id} className="unassigned-card" draggable
+              onDragStart={e=>{setDragData({type:'unassigned',officeId:o.id,duration:0.5});e.dataTransfer.effectAllowed='copy';}}
+              style={{borderLeftColor:catColor(o.category)}}>
+              <div className="uc-name">{o.name}</div>
+              <div className="uc-cat">{o.category}</div>
+              <div className="uc-phone">{o.phone}</div>
+            </div>
+          ))}
+          {filtered.length===0 && <p style={{textAlign:'center',padding:24,color:'#9ca3af',fontSize:12}}>{q?'該当する営業先がありません':'営業先がありません'}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData, currentDate}) {
+  const isEdit = modal.type==='edit';
+  const ev = isEdit ? modal.event : null;
+  const VISIT_RESULTS = ['未記録','対面挨拶','パンフレット・名刺のみお渡し','不在'];
+  const RESPONSE_RATINGS = [{v:0,label:'未評価',color:'#9ca3af'},{v:1,label:'△',color:'#f59e0b'},{v:2,label:'○',color:'#3b82f6'},{v:3,label:'◎',color:'#059669'}];
+  const isVisitorVisit = isEdit ? !ev.officeId && ev.visitType==='利用者訪問' : modal.type==='add' && modal.isVisitor;
+  const [f, setF] = useState(isEdit ? {
+    officeId:ev.officeId||'',staffId:ev.staffId,date:ev.date||currentDate,startTime:ev.startTime,endTime:ev.endTime,memo:ev.memo||'',
+    visitResult:ev.visitResult||'未記録',contactPerson:ev.contactPerson||'',contactPhone:ev.contactPhone||'',contactEmail:ev.contactEmail||'',
+    hasCard:ev.hasCard||false,cardPhoto:ev.cardPhoto||'',responseRating:ev.responseRating||0,
+    contactPerson2:ev.contactPerson2||'',contactPhone2:ev.contactPhone2||'',contactEmail2:ev.contactEmail2||'',
+    customAddress:ev.customAddress||'',visitorName:ev.visitorName||'',visitorPhone:ev.visitorPhone||''
+  } : {officeId:'',staffId:staff[0]?.id||'',date:currentDate,startTime:'09:00',endTime:'09:30',memo:'',
+    visitResult:'未記録',contactPerson:'',contactPhone:'',contactEmail:'',
+    hasCard:false,cardPhoto:'',responseRating:0,
+    contactPerson2:'',contactPhone2:'',contactEmail2:'',
+    customAddress:'',visitorName:'',visitorPhone:''});
+  const [officeQ, setOfficeQ] = useState('');
+  const [showOfficeList, setShowOfficeList] = useState(false);
+  const [showContact2, setShowContact2] = useState(!!(isEdit && (ev.contactPerson2||ev.contactPhone2||ev.contactEmail2)));
+  const [gcalMsg, setGcalMsg] = useState('');
+  const cardFileRef = useRef();
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+
+  // 営業先選択時に担当者情報を自動入力
+  const selectOffice = (oid) => {
+    setF(p=>({...p, officeId:oid}));
+    setOfficeQ(''); setShowOfficeList(false);
+    if(oid) {
+      const o = offices.find(x=>x.id===oid);
+      if(o && (o.contacts||[]).length > 0) {
+        const c = o.contacts[0];
+        setF(p=>({...p, officeId:oid, contactPerson:c.name||'', contactPhone:c.phone||'', contactEmail:c.email||''}));
+      }
+    }
+  };
+
+  // 名刺写真読み込み
+  const handleCardPhoto = (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => setF(p=>({...p, cardPhoto:evt.target.result, hasCard:true}));
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const save = () => {
+    if(!f.staffId) return;
+    if(!isVisitorVisit && !f.officeId) return; // 営業先は営業記録の場合のみ必須
+    const eventData = {...f, visitType: isVisitorVisit ? '利用者訪問' : '営業'};
+    if(isEdit) { upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===ev.id?{...e,...eventData}:e)})); }
+    else { upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),...eventData}]})); }
+    // Googleカレンダー自動連携（全件）
+    syncToGoogleCal(eventData);
+    setModal(null);
+  };
+
+  const syncToGoogleCal = (eventData) => {
+    if(!GCAL_SCRIPT_URL) return; // 未設定ならスキップ
+    try {
+      const s = staff.find(x=>x.id===eventData.staffId);
+      if(!s) return;
+
+      const isVisitor = eventData.visitType === '利用者訪問' || eventData.memo?.includes('利用者訪問') || eventData.category === '利用者訪問';
+
+      let summary, eventAddress, desc;
+      if(isVisitor) {
+        // 利用者訪問
+        summary = `${eventData.visitorName||'利用者'}（利用者訪問）　${s.name}`;
+        eventAddress = eventData.visitorPhone || '';
+        desc = `利用者名: ${eventData.visitorName||'-'}\n電話: ${eventData.visitorPhone||'-'}\nメモ: ${eventData.memo||'-'}`;
+      } else {
+        // 営業先訪問
+        const o = offices.find(x=>x.id===eventData.officeId);
+        if(!o) return;
+        summary = `${o.name}　${s.name}`;
+        eventAddress = eventData.customAddress || o.address || '';
+        desc = `訪問結果: ${eventData.visitResult||'未記録'}\n担当者: ${eventData.contactPerson||'-'}\nメモ: ${eventData.memo||'-'}`;
+      }
+
+      const dateStr = eventData.date;
+      const startISO = `${dateStr}T${eventData.startTime}:00`;
+      const endISO = `${dateStr}T${eventData.endTime}:00`;
+
+      const calendarType = isVisitor ? 'visitor' : 'office';
+      const officeCalId = data.settings?.officeCalendarId || '';
+      const visitorCalId = data.settings?.visitorCalendarId || '';
+      const targetCalendarId = isVisitor ? visitorCalId : officeCalId;
+      const params = new URLSearchParams({summary, start: startISO, end: endISO, location: eventAddress, description: desc, calendarType, targetCalendarId});
+      fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
+        .then(() => console.log(`📅 Gcal自動登録リクエスト送信 (${calendarType})`))
+        .catch(e => console.log('Gcal送信エラー:', e));
+    } catch(e) { console.log('Gcal sync error', e); }
+  };
+
+  const del = () => {
+    if(!window.confirm('この予定を削除しますか？')) return;
+    // Googleカレンダーから削除を通知
+    if(GCAL_SCRIPT_URL) {
+      const params = new URLSearchParams({action:'delete', eventId: ev.id});
+      fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
+        .then(() => console.log('📅 Gcal削除リクエスト送信'))
+        .catch(e => console.log('Gcal送信エラー:', e));
+    }
+    upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).filter(e=>e.id!==ev.id)}));
+    setModal(null);
+  };
+  const selOffice = offices.find(o=>o.id===f.officeId);
+  const filteredOffices = offices.filter(o => !officeQ || o.name.includes(officeQ) || (o.category||'').includes(officeQ)).slice(0,10);
+
+  // 既存の担当者情報を表示
+  const existingContacts = selOffice ? (selOffice.contacts||[]) : [];
+
+  return (
+    <div className="modal-overlay" onClick={()=>setModal(null)}>
+      <div className="modal-box" onClick={e=>e.stopPropagation()} style={{maxHeight:'85vh',overflowY:'auto'}}>
+        <h2>{isEdit?'予定を編集':'予定を追加'}</h2>
+        {!isVisitorVisit ? (
+          <>
+            <div className="form-group"><label>営業先</label>
+              {selOffice ? (
+                <div style={{padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,background:'#faf5ff',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                  <span><strong>{selOffice.name}</strong> <span style={{fontSize:11,color:'#6b7280'}}>（{selOffice.category}）</span></span>
+                  <button onClick={()=>{setF(p=>({...p,officeId:''}));setShowOfficeList(true);}} style={{color:'#7c3aed',background:'none',border:'none',cursor:'pointer',fontSize:12}}>変更</button>
+                </div>
+              ) : (
+                <div style={{position:'relative'}}>
+                  <input value={officeQ} onChange={e=>{setOfficeQ(e.target.value);setShowOfficeList(true);}} onFocus={()=>setShowOfficeList(true)} placeholder="営業先を検索..." style={{width:'100%',padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13}}/>
+                  {showOfficeList && (
+                    <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e5e7eb',borderRadius:8,maxHeight:200,overflowY:'auto',zIndex:10,boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
+                      {filteredOffices.map(o=>(
+                        <div key={o.id} onClick={()=>selectOffice(o.id)} style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f3f4f6'}} onMouseOver={e=>e.target.style.background='#faf5ff'} onMouseOut={e=>e.target.style.background=''}>
+                          {o.name} <span style={{fontSize:11,color:'#9ca3af'}}>（{o.category}）</span>
+                        </div>
+                      ))}
+                      {filteredOffices.length===0 && <div style={{padding:'12px',color:'#9ca3af',fontSize:12,textAlign:'center'}}>該当する営業先がありません</div>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            {selOffice && selOffice.address && (
+              <div style={{fontSize:12,color:'#6b7280',marginTop:-8,marginBottom:8,paddingLeft:2}}>📍 {selOffice.address}</div>
+            )}
+            <div className="form-group"><label>カスタム住所（空欄の場合は営業先住所を使用）</label><input type="text" value={f.customAddress} onChange={set('customAddress')} placeholder="訪問地が異なる場合に入力"/></div>
+          </>
+        ) : (
+          <>
+            <div style={{background:'#fef3c7',borderRadius:8,padding:10,marginBottom:12,border:'1px solid #fcd34d'}}>
+              <div style={{fontSize:12,fontWeight:600,color:'#92400e'}}>👥 利用者訪問</div>
+            </div>
+            <div className="form-group"><label>利用者名 *</label><input value={f.visitorName} onChange={set('visitorName')} placeholder="利用者の名前を入力"/></div>
+            <div className="form-group"><label>電話番号</label><input value={f.visitorPhone} onChange={set('visitorPhone')} placeholder="090-XXXX-XXXX"/></div>
+          </>
+        )}
+
+        <div className="form-group"><label>担当スタッフ</label>
+          <select value={f.staffId} onChange={set('staffId')}>{staff.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select>
+        </div>
+        <div className="form-group"><label>日付</label>
+          <input type="date" value={f.date} onChange={set('date')}/>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          <div className="form-group"><label>開始時間</label><select value={f.startTime} onChange={set('startTime')}>{CAL_TIMES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+          <div className="form-group"><label>終了時間</label><select value={f.endTime} onChange={set('endTime')}>{CAL_TIMES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        </div>
+
+        {!isVisitorVisit && <div style={{borderTop:'1px solid #e5e7eb',marginTop:16,paddingTop:16}}>
+          <h3 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>📝 営業記録</h3>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div className="form-group"><label>訪問結果</label>
+              <select value={f.visitResult} onChange={set('visitResult')} style={{color:f.visitResult==='対面挨拶'?'#059669':f.visitResult==='不在'?'#ef4444':'#374151'}}>
+                {VISIT_RESULTS.map(r=><option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div className="form-group"><label>対応評価</label>
+              <div style={{display:'flex',gap:6}}>
+                {RESPONSE_RATINGS.map(r=>(
+                  <button key={r.v} onClick={()=>setF(p=>({...p,responseRating:r.v}))} style={{flex:1,padding:'6px 4px',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',border:f.responseRating===r.v?`2px solid ${r.color}`:'2px solid #e5e7eb',background:f.responseRating===r.v?`${r.color}15`:'#fff',color:r.color,transition:'all 0.15s'}}>
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginTop:4}}>
+            <div className="form-group">
+              <label>名刺</label>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:12}}>
+                  <input type="checkbox" checked={f.hasCard} onChange={e=>setF(p=>({...p,hasCard:e.target.checked}))} style={{accentColor:'#7c3aed',width:14,height:14}}/>
+                  あり
+                </label>
+                {f.hasCard && <button className="btn btn-ghost btn-sm" onClick={()=>cardFileRef.current?.click()} style={{fontSize:11,padding:'3px 8px'}}>📷 写真登録</button>}
+                <input ref={cardFileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={handleCardPhoto}/>
+              </div>
+            </div>
+            {f.cardPhoto && (
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <img src={f.cardPhoto} alt="名刺" style={{width:60,height:36,objectFit:'cover',borderRadius:4,border:'1px solid #e5e7eb'}}/>
+                <button onClick={()=>setF(p=>({...p,cardPhoto:''}))} style={{background:'none',border:'none',color:'#ef4444',cursor:'pointer',fontSize:12}}>✕ 削除</button>
+              </div>
+            )}
+          </div>
+
+          {existingContacts.length > 0 && (
+            <div style={{background:'#f8fafc',borderRadius:8,padding:10,marginBottom:8,marginTop:4}}>
+              <div style={{fontSize:11,color:'#6b7280',fontWeight:600,marginBottom:6}}>登録済み担当者</div>
+              {existingContacts.map((c,i) => (
+                <div key={i} style={{fontSize:12,color:'#374151',marginBottom:2}}>
+                  {c.name}{c.role?` (${c.role})`:''}{c.phone?` 📞${c.phone}`:''}{c.email?` ✉️${c.email}`:''}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="form-group"><label>① 対応担当者</label><input value={f.contactPerson} onChange={set('contactPerson')} placeholder="先方の担当者名"/></div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div className="form-group"><label>電話番号</label><input value={f.contactPhone} onChange={set('contactPhone')} placeholder="090-XXXX-XXXX"/></div>
+            <div className="form-group"><label>メールアドレス</label><input value={f.contactEmail} onChange={set('contactEmail')} placeholder="name@example.com"/></div>
+          </div>
+
+          {!showContact2 ? (
+            <button onClick={()=>setShowContact2(true)} style={{background:'none',border:'none',color:'#7c3aed',fontSize:12,cursor:'pointer',padding:'4px 0',fontWeight:600}}>＋ ② 別の担当者を追加</button>
+          ) : (
+            <div style={{background:'#faf5ff',borderRadius:8,padding:10,marginTop:4}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:6}}>
+                <span style={{fontSize:12,fontWeight:600,color:'#6d28d9'}}>② 追加担当者</span>
+                <button onClick={()=>{setShowContact2(false);setF(p=>({...p,contactPerson2:'',contactPhone2:'',contactEmail2:''}));}} style={{background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:12}}>✕ 閉じる</button>
+              </div>
+              <div className="form-group"><label>担当者名</label><input value={f.contactPerson2} onChange={set('contactPerson2')} placeholder="2人目の担当者名"/></div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                <div className="form-group"><label>電話番号</label><input value={f.contactPhone2} onChange={set('contactPhone2')} placeholder="090-XXXX-XXXX"/></div>
+                <div className="form-group"><label>メールアドレス</label><input value={f.contactEmail2} onChange={set('contactEmail2')} placeholder="name@example.com"/></div>
+              </div>
+            </div>
+          )}
+
+        </div>}
+
+        <div className="form-group" style={{marginTop:8}}><label>メモ</label><textarea rows="3" value={f.memo} onChange={set('memo')} placeholder="訪問内容、次回アクションなど" style={{width:'100%',padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,fontSize:13,resize:'vertical'}}/></div>
+
+        {gcalMsg && <p style={{fontSize:12,color:'#059669',marginTop:8}}>{gcalMsg}</p>}
+        {GCAL_SCRIPT_URL && <div style={{display:'flex',alignItems:'center',gap:6,marginTop:12,padding:'6px 12px',background:'#f0fdf4',borderRadius:8,border:'1px solid #bbf7d0',fontSize:12,color:'#059669'}}>
+          <span>📅</span><span>保存時にGoogleカレンダーへ自動登録されます</span>
+        </div>}
+        <div style={{display:'flex',gap:8,marginTop:12}}>
+          <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setModal(null)}>キャンセル</button>
+          {isEdit && <button className="btn btn-ghost" style={{color:'#ef4444',borderColor:'#fca5a5'}} onClick={del}>削除</button>}
+          <button className="btn btn-primary" style={{flex:1}} onClick={save}>{isEdit?'更新':'追加'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SETTINGS ───
+function Settings({data, upData}) {
+  const [apiKey, setApiKey] = useState(data.settings?.apiKey||'');
+  const [syncUrl, setSyncUrl] = useState(data.settings?.syncUrl||'');
+  const [officeCalendarId, setOfficeCalendarId] = useState(data.settings?.officeCalendarId||'');
+  const [visitorCalendarId, setVisitorCalendarId] = useState(data.settings?.visitorCalendarId||'');
+  const [msg, setMsg] = useState('');
+  const [newCat, setNewCat] = useState('');
+  const [catMsg, setCatMsg] = useState('');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffRole, setNewStaffRole] = useState('');
+  const [newStaffColor, setNewStaffColor] = useState(STAFF_COLORS[(data.staff||[]).length % STAFF_COLORS.length]);
+  const [staffMsg, setStaffMsg] = useState('');
+  const [editingStaffId, setEditingStaffId] = useState(null);
+  const [editStaff, setEditStaff] = useState({name:'',role:'',color:''});
+  const saveSettings = () => {
+    upData(d => ({...d, settings:{...d.settings, apiKey:apiKey.trim(), syncUrl:syncUrl.trim(), officeCalendarId:officeCalendarId.trim(), visitorCalendarId:visitorCalendarId.trim()}}));
+    setMsg('保存しました'); setTimeout(()=>setMsg(''),2000);
+  };
+  const resetData = () => {
+    if(!window.confirm('⚠️ すべてのデータをリセットしますか？\n営業先・カレンダー予定・スタッフ情報などすべてが削除されます。')) return;
+    if(!window.confirm('⚠️【最終確認】本当にリセットしますか？\nこの操作は元に戻せません。')) return;
+    localStorage.removeItem(LS);
+    window.location.reload();
+  };
+
+  // カテゴリー管理
+  const allCategories = [...new Set(data.offices.map(o=>o.category))].sort();
+  const customCategories = data.settings?.customCategories || [];
+  const mergedCategories = [...new Set([...allCategories, ...customCategories])].sort();
+  const categoryColors = data.settings?.categoryColors || {};
+
+  const addCategory = () => {
+    const name = newCat.trim();
+    if(!name) return;
+    if(mergedCategories.includes(name)) { setCatMsg('⚠️ このカテゴリーは既に存在します'); setTimeout(()=>setCatMsg(''),2000); return; }
+    const newColors = {...categoryColors, [name]: getCategoryColor(name, categoryColors)};
+    upData(d => ({...d, settings:{...d.settings, customCategories:[...(d.settings?.customCategories||[]), name], categoryColors: newColors}}));
+    setNewCat('');
+    setCatMsg('✅ カテゴリーを追加しました'); setTimeout(()=>setCatMsg(''),2000);
+  };
+  const deleteCategory = (cat) => {
+    const usedCount = data.offices.filter(o=>o.category===cat).length;
+    const confirmMsg = usedCount > 0
+      ? `「${cat}」は ${usedCount}件 の事業所で使用中です。カテゴリーを削除すると、該当事業所のカテゴリーは「その他」に変更されます。\n削除しますか？`
+      : `「${cat}」を削除しますか？`;
+    if(!window.confirm(confirmMsg)) return;
+    const newColors = {...categoryColors};
+    delete newColors[cat];
+    upData(d => ({
+      ...d,
+      offices: d.offices.map(o => o.category===cat ? {...o, category:'その他'} : o),
+      settings: {...d.settings, customCategories: (d.settings?.customCategories||[]).filter(c=>c!==cat), categoryColors: newColors}
+    }));
+    setCatMsg('✅ カテゴリーを削除しました'); setTimeout(()=>setCatMsg(''),2000);
+  };
+  const setCategoryColor = (cat, color) => {
+    const newColors = {...categoryColors, [cat]: color};
+    upData(d => ({...d, settings:{...d.settings, categoryColors: newColors}}));
+  };
+
+  const addStaff = () => {
+    if(!newStaffName.trim()) { setStaffMsg('名前を入力してください'); setTimeout(()=>setStaffMsg(''),2000); return; }
+    upData(d => ({...d, staff:[...(d.staff||[]), {id:uid(), name:newStaffName.trim(), role:newStaffRole.trim(), color:newStaffColor}]}));
+    setNewStaffName(''); setNewStaffRole('');
+    setNewStaffColor(STAFF_COLORS[((data.staff||[]).length+1) % STAFF_COLORS.length]);
+    setStaffMsg('✅ 追加しました'); setTimeout(()=>setStaffMsg(''),2000);
+  };
+  const removeStaff = (id) => {
+    const s = (data.staff||[]).find(x=>x.id===id);
+    if(!window.confirm(`「${s.name}」を削除しますか？\nこのスタッフのカレンダー予定も削除されます。`)) return;
+    upData(d => ({...d, staff:(d.staff||[]).filter(x=>x.id!==id), calendarEvents:(d.calendarEvents||[]).filter(e=>e.staffId!==id)}));
+  };
+  const startEditStaff = (s) => { setEditingStaffId(s.id); setEditStaff({name:s.name,role:s.role||'',color:s.color}); };
+  const saveEditStaff = () => {
+    if(!editStaff.name.trim()) return;
+    upData(d => ({...d, staff:(d.staff||[]).map(s=>s.id===editingStaffId?{...s,name:editStaff.name.trim(),role:editStaff.role.trim(),color:editStaff.color}:s)}));
+    setEditingStaffId(null);
+  };
+  const cancelEditStaff = () => setEditingStaffId(null);
+
+  return (
+    <div style={{maxWidth:600}}>
+      <div className="chart-card" style={{marginBottom:16}}>
+        <h3>🏷️ 営業先カテゴリー管理</h3>
+        <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>カテゴリーの追加・削除ができます。使用中のカテゴリーを削除すると「その他」に変更されます。</p>
+        <div style={{display:'flex',gap:8,marginBottom:12}}>
+          <input value={newCat} onChange={e=>setNewCat(e.target.value)} placeholder="新しいカテゴリー名" style={{flex:1}} onKeyDown={e=>e.key==='Enter'&&addCategory()}/>
+          <button className="btn btn-primary btn-sm" onClick={addCategory}>追加</button>
+        </div>
+        {catMsg && <p style={{fontSize:12,marginBottom:8,color:catMsg.startsWith('✅')?'#059669':'#d97706'}}>{catMsg}</p>}
+        <div style={{display:'flex',flexDirection:'column',gap:12}}>
+          {mergedCategories.map(cat => {
+            const count = data.offices.filter(o=>o.category===cat).length;
+            const color = getCategoryColor(cat, categoryColors);
+            return (
+              <div key={cat} style={{background:'linear-gradient(135deg,#fafafa 0%,#f5f5f5 100%)',border:'1px solid #e2e8f0',borderRadius:12,padding:'12px 14px',transition:'all 0.2s'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:700,color:'#1a1a2e'}}>{cat}</div>
+                    <div style={{fontSize:10,color:'#9ca3af',marginTop:2}}>使用中: {count}件</div>
+                  </div>
+                  <button onClick={()=>deleteCategory(cat)} style={{background:'none',border:'none',cursor:'pointer',color:'#ef4444',fontSize:18,padding:'0 8px',lineHeight:1,transition:'opacity 0.2s',opacity:0.6}} onMouseEnter={e=>e.target.style.opacity=1} onMouseLeave={e=>e.target.style.opacity=0.6} title="削除">×</button>
+                </div>
+                <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+                  {STAFF_COLORS.map(c=>{
+                    const colorName = {
+                      '#3b82f6':'Blue','#1e40af':'Navy','#06b6d4':'Cyan','#059669':'Green','#7c3aed':'Purple',
+                      '#d946ef':'Magenta','#f43f5e':'Rose','#f97316':'Orange','#eab308':'Yellow','#a16207':'Amber'
+                    }[c]||c;
+                    return (
+                      <div key={c}
+                        onClick={()=>setCategoryColor(cat,c)}
+                        onMouseEnter={e=>e.currentTarget.style.transform='scale(1.2)'}
+                        onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}
+                        style={{
+                          width:24,
+                          height:24,
+                          borderRadius:'50%',
+                          background:c,
+                          cursor:'pointer',
+                          border:color===c?'3px solid #1a1a2e':'2px solid rgba(0,0,0,0.1)',
+                          transition:'all 0.2s cubic-bezier(0.34,1.56,0.64,1)',
+                          boxShadow:color===c?`0 0 0 2px #fff,0 4px 12px ${c}60`:'0 1px 3px rgba(0,0,0,0.1)',
+                          position:'relative',
+                          display:'flex',alignItems:'center',justifyContent:'center'
+                        }}
+                        title={colorName}>
+                        {color===c && <div style={{fontSize:12}}>✓</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          {mergedCategories.length===0 && <p style={{fontSize:12,color:'#9ca3af',textAlign:'center',padding:16}}>カテゴリーがありません</p>}
+        </div>
+      </div>
+      <div className="chart-card" style={{marginBottom:16}}>
+        <h3>👥 従業員管理</h3>
+        <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>営業カレンダーに表示するスタッフを管理します。</p>
+        {(data.staff||[]).map(s => editingStaffId===s.id ? (
+          <div key={s.id} className="staff-row" style={{border:'2px solid #7c3aed',background:'#faf5ff',padding:'12px',borderRadius:8}}>
+            <div style={{marginBottom:10}}>
+              <p style={{fontSize:11,fontWeight:600,color:'#6b7280',marginBottom:8}}>スタッフカラーを選択</p>
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {STAFF_COLORS.map(c=>(
+                  <div key={c} onClick={()=>setEditStaff(p=>({...p,color:c}))}
+                    onMouseEnter={e=>e.currentTarget.style.transform='scale(1.2)'}
+                    onMouseLeave={e=>e.currentTarget.style.transform='scale(1)'}
+                    style={{width:24,height:24,borderRadius:'50%',background:c,cursor:'pointer',border:editStaff.color===c?'3px solid #1a1a2e':'2px solid rgba(0,0,0,0.1)',transition:'all 0.2s',boxShadow:editStaff.color===c?`0 0 0 2px #fff,0 4px 12px ${c}60`:'0 1px 3px rgba(0,0,0,0.1)',display:'flex',alignItems:'center',justifyContent:'center'}}>{editStaff.color===c && <span style={{fontSize:12}}>✓</span>}</div>
+                ))}
+              </div>
+            </div>
+            <div style={{flex:1,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              <input value={editStaff.name} onChange={e=>setEditStaff(p=>({...p,name:e.target.value}))} style={{padding:'4px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12}} placeholder="名前"/>
+              <input value={editStaff.role} onChange={e=>setEditStaff(p=>({...p,role:e.target.value}))} style={{padding:'4px 8px',border:'1px solid #e2e8f0',borderRadius:6,fontSize:12}} placeholder="役職"/>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={saveEditStaff}>保存</button>
+            <button className="btn btn-ghost btn-sm" onClick={cancelEditStaff}>取消</button>
+          </div>
+        ) : (
+          <div key={s.id} className="staff-row">
+            <div className="staff-info"><div className="sname">{s.name}</div><div className="srole">{s.role||'役職未設定'}</div></div>
+            <button className="btn btn-ghost btn-sm" onClick={()=>startEditStaff(s)} style={{fontSize:11,padding:'3px 8px'}}>✏️ 編集</button>
+            <button className="btn btn-ghost btn-sm" onClick={(e)=>{e.stopPropagation();removeStaff(s.id);}} style={{fontSize:11,padding:'3px 8px',color:'#ef4444',borderColor:'#fca5a5'}}>🗑 削除</button>
+          </div>
+        ))}
+        {(data.staff||[]).length===0 && <p style={{textAlign:'center',padding:16,color:'#9ca3af',fontSize:12}}>スタッフが登録されていません</p>}
+        <div style={{borderTop:'1px solid #e5e7eb',marginTop:16,paddingTop:16}}>
+          <h4 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>＋ スタッフを追加</h4>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+            <div className="form-group"><label>名前 *</label><input value={newStaffName} onChange={e=>setNewStaffName(e.target.value)} placeholder="山田 太郎" onKeyDown={e=>e.key==='Enter'&&addStaff()}/></div>
+            <div className="form-group"><label>役職</label><input value={newStaffRole} onChange={e=>setNewStaffRole(e.target.value)} placeholder="看護師" onKeyDown={e=>e.key==='Enter'&&addStaff()}/></div>
+          </div>
+          {staffMsg && <p style={{fontSize:12,marginBottom:8,color:staffMsg.startsWith('✅')?'#059669':'#ef4444'}}>{staffMsg}</p>}
+          <button className="btn btn-primary" onClick={addStaff}>追加</button>
+        </div>
+      </div>
+      <div className="chart-card" style={{marginBottom:16}}>
+        <h3>🔑 名刺OCR設定</h3>
+        <div className="form-group"><label>Claude APIキー</label><input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-..."/></div>
+        <div className="form-group"><label>GAS URL（チーム共有用）</label><input value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/..."/></div>
+        {msg && <p style={{color:'#059669',fontSize:12,marginBottom:8}}>{msg}</p>}
+        <button className="btn btn-primary" onClick={saveSettings}>保存</button>
+      </div>
+      <div className="chart-card" style={{marginBottom:16}}>
+        <h3>📅 Googleカレンダー設定</h3>
+        <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>営業先と利用者訪問を別々のカレンダーに登録します</p>
+        <div className="form-group"><label>営業先カレンダーID</label><input value={officeCalendarId} onChange={e=>setOfficeCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
+        <div className="form-group"><label>利用者訪問カレンダーID</label><input value={visitorCalendarId} onChange={e=>setVisitorCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
+        {msg && <p style={{color:'#059669',fontSize:12,marginBottom:8}}>{msg}</p>}
+        <button className="btn btn-primary" onClick={saveSettings}>保存</button>
+      </div>
+      <AdminSection resetData={resetData}/>
+    </div>
+  );
+}
+
+// ─── 管理者画面 ───
+function AdminSection({resetData}) {
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [pwMsg, setPwMsg] = useState('');
+  const [showAdmin, setShowAdmin] = useState(false);
+
+  const changePassword = () => {
+    if(currentPw !== getAppPassword()) { setPwMsg('❌ 現在のパスワードが正しくありません'); setTimeout(()=>setPwMsg(''),3000); return; }
+    if(!newPw || newPw.length < 4) { setPwMsg('❌ 新しいパスワードは4文字以上にしてください'); setTimeout(()=>setPwMsg(''),3000); return; }
+    if(newPw !== confirmPw) { setPwMsg('❌ 新しいパスワードが一致しません'); setTimeout(()=>setPwMsg(''),3000); return; }
+    setAppPassword(newPw);
+    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    setPwMsg('✅ パスワードを変更しました'); setTimeout(()=>setPwMsg(''),3000);
+  };
+
+  return (
+    <div className="chart-card" style={{border:'1px solid #fca5a5'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}} onClick={()=>setShowAdmin(!showAdmin)}>
+        <h3>🔐 管理者設定</h3>
+        <span style={{fontSize:12,color:'#6b7280'}}>{showAdmin ? '▲ 閉じる' : '▼ 開く'}</span>
+      </div>
+      {showAdmin && (
+        <div style={{marginTop:16}}>
+          <div style={{marginBottom:20}}>
+            <h4 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>🔑 パスワード変更</h4>
+            <div className="form-group"><label>現在のパスワード</label><input type="password" value={currentPw} onChange={e=>setCurrentPw(e.target.value)} placeholder="現在のパスワード"/></div>
+            <div className="form-group"><label>新しいパスワード</label><input type="password" value={newPw} onChange={e=>setNewPw(e.target.value)} placeholder="新しいパスワード（4文字以上）"/></div>
+            <div className="form-group"><label>新しいパスワード（確認）</label><input type="password" value={confirmPw} onChange={e=>setConfirmPw(e.target.value)} placeholder="もう一度入力" onKeyDown={e=>e.key==='Enter'&&changePassword()}/></div>
+            {pwMsg && <p style={{fontSize:12,marginBottom:8,color:pwMsg.startsWith('✅')?'#059669':'#ef4444'}}>{pwMsg}</p>}
+            <button className="btn btn-primary btn-sm" onClick={changePassword}>パスワードを変更</button>
+          </div>
+          <div style={{borderTop:'1px solid #e5e7eb',paddingTop:16}}>
+            <h4 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:8}}>⚠️ データ管理</h4>
+            <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>すべてのデータはブラウザのlocalStorageに保存されています。リセットすると営業先・カレンダー予定・スタッフ情報などすべてが削除されます。</p>
+            <button className="btn btn-ghost" style={{color:'#ef4444',borderColor:'#fca5a5'}} onClick={resetData}>データをリセット</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── OFFICE DETAIL PANEL (編集・削除機能付き) ───
+function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
+  const officeId = detailId.replace('office-','');
+  const office = data.offices.find(o=>o.id===officeId);
+  if(!office) { setDetailId(null); return null; }
+
+  const [editing, setEditing] = useState(false);
+  const [f, setF] = useState({name:office.name, address:office.address, phone:office.phone||'', org:office.org||'', category:office.category||'', email:office.email||''});
+  const [addingContact, setAddingContact] = useState(false);
+  const [newC, setNewC] = useState({name:'',role:'',phone:'',email:''});
+  const [addingReferral, setAddingReferral] = useState(false);
+  const [newRef, setNewRef] = useState({name:'',date:new Date().toISOString().split('T')[0],status:'問合せ中',insurance:'介護保険',note:''});
+  const REFERRAL_STATUSES = ['問合せ中','調整中','受入済','見送り'];
+  const INSURANCES = ['介護保険','医療保険','自費'];
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  const setC = k => e => setNewC(p=>({...p,[k]:e.target.value}));
+  const setRef = k => e => setNewRef(p=>({...p,[k]:e.target.value}));
+
+  const saveEdit = () => {
+    upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, ...f} : o)}));
+    setEditing(false);
+  };
+  const deleteOffice = () => {
+    if(!window.confirm(`「${office.name}」を削除しますか？\nこの操作は元に戻せません。`)) return;
+    upData(d => ({...d, offices: d.offices.filter(o => o.id!==officeId), deals: d.deals.filter(dl => dl.officeId!==officeId)}));
+    setDetailId(null);
+  };
+  const addContact = () => {
+    if(!newC.name) return;
+    upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, contacts:[...(o.contacts||[]), {...newC}]} : o)}));
+    setNewC({name:'',role:'',phone:'',email:''});
+    setAddingContact(false);
+  };
+  const deleteContact = idx => {
+    if(!window.confirm('この担当者を削除しますか？')) return;
+    upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, contacts:(o.contacts||[]).filter((_,i)=>i!==idx)} : o)}));
+  };
+  const addReferral = () => {
+    if(!newRef.name.trim()) return;
+    upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, referrals:[{...newRef, id:uid()}, ...(o.referrals||[])]} : o)}));
+    setNewRef({name:'',date:new Date().toISOString().split('T')[0],status:'問合せ中',insurance:'介護保険',note:''});
+    setAddingReferral(false);
+  };
+  const updateReferralStatus = (rid, status) => {
+    upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, referrals:(o.referrals||[]).map(r=>r.id===rid?{...r,status}:r)} : o)}));
+  };
+  const deleteReferral = (rid) => {
+    if(!window.confirm('この紹介利用者を削除しますか？')) return;
+    upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, referrals:(o.referrals||[]).filter(r=>r.id!==rid)} : o)}));
+  };
+
+  return (
+    <div className="detail-panel">
+      <div className="detail-header">
+        <h2 style={{fontSize:15}}>{office.name}</h2>
+        <button onClick={()=>setDetailId(null)} style={{fontSize:20,background:'none',border:'none',cursor:'pointer',color:'#9ca3af'}}>✕</button>
+      </div>
+      <div className="detail-body">
+        {!editing ? (
+          <div>
+            <div className="form-group"><label>種別</label><p style={{fontSize:13}}>{office.category}</p></div>
+            <div className="form-group"><label>住所</label><p style={{fontSize:13}}>{office.address}</p></div>
+            <div className="form-group"><label>電話番号</label><p style={{fontSize:13}}>{office.phone ? <a href={`tel:${office.phone}`} style={{color:'#7c3aed'}}>{office.phone}</a> : '-'}</p></div>
+            <div className="form-group"><label>メールアドレス</label><p style={{fontSize:13}}>{office.email ? <a href={`mailto:${office.email}`} style={{color:'#3b82f6'}}>{office.email}</a> : '-'}</p></div>
+            <div className="form-group"><label>法人</label><p style={{fontSize:13}}>{office.org||'-'}</p></div>
+            <div style={{display:'flex',gap:8,marginTop:16,flexWrap:'wrap'}}>
+              <button className="btn btn-primary btn-sm" onClick={()=>setEditing(true)}>✏️ 編集</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setModal&&setModal({type:'scanCard',officeId:officeId})} style={{display:'flex',alignItems:'center',gap:4}}>📷 名刺スキャン</button>
+              <button className="btn btn-ghost btn-sm" style={{color:'#ef4444',borderColor:'#fca5a5'}} onClick={deleteOffice}>🗑 削除</button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="form-group"><label>事業所名</label><input value={f.name} onChange={set('name')}/></div>
+            <div className="form-group"><label>種別</label><input value={f.category} onChange={set('category')}/></div>
+            <div className="form-group"><label>住所</label><input value={f.address} onChange={set('address')}/></div>
+            <div className="form-group"><label>電話番号</label><input value={f.phone} onChange={set('phone')}/></div>
+            <div className="form-group"><label>メールアドレス</label><input value={f.email} onChange={set('email')} placeholder="example@kaigo.jp"/></div>
+            <div className="form-group"><label>法人</label><input value={f.org} onChange={set('org')}/></div>
+            <div style={{display:'flex',gap:8,marginTop:12}}>
+              <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setEditing(false)}>キャンセル</button>
+              <button className="btn btn-primary" style={{flex:1}} onClick={saveEdit}>保存</button>
+            </div>
+          </div>
+        )}
+
+        {/* 訪問履歴セクション */}
+        {(() => {
+          const visits = (data.calendarEvents||[]).filter(e=>e.officeId===officeId).sort((a,b)=>(b.date+b.startTime).localeCompare(a.date+a.startTime));
+          const totalVisits = visits.length;
+          const greetedCount = visits.filter(v=>v.visitResult==='対面挨拶').length;
+          const absentCount = visits.filter(v=>v.visitResult==='不在').length;
+          const recordedCount = visits.filter(v=>v.visitResult&&v.visitResult!=='未記録').length;
+          return (
+            <div style={{marginTop:24,borderTop:'1px solid #e5e7eb',paddingTop:16}}>
+              <h3 style={{fontSize:14,fontWeight:700,marginBottom:12}}>📅 訪問履歴</h3>
+              <div style={{display:'flex',gap:12,marginBottom:16,flexWrap:'wrap'}}>
+                <div style={{background:'#f0f9ff',borderRadius:8,padding:'8px 14px',textAlign:'center'}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#3b82f6'}}>{totalVisits}</div>
+                  <div style={{fontSize:10,color:'#6b7280'}}>累計訪問回数</div>
+                </div>
+                <div style={{background:'#f0fdf4',borderRadius:8,padding:'8px 14px',textAlign:'center'}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#059669'}}>{greetedCount}</div>
+                  <div style={{fontSize:10,color:'#6b7280'}}>対面挨拶</div>
+                </div>
+                <div style={{background:'#fef2f2',borderRadius:8,padding:'8px 14px',textAlign:'center'}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#ef4444'}}>{absentCount}</div>
+                  <div style={{fontSize:10,color:'#6b7280'}}>不在</div>
+                </div>
+              </div>
+              {visits.length>0 ? visits.slice(0,10).map(v => {
+                const s = (data.staff||[]).find(x=>x.id===v.staffId);
+                const resultColor = v.visitResult==='対面挨拶'?'#059669':v.visitResult==='不在'?'#ef4444':'#6b7280';
+                return (
+                  <div key={v.id} style={{padding:'8px 0',borderBottom:'1px solid #f3f4f6',fontSize:12}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontWeight:600,color:'#374151'}}>{v.date} {v.startTime}〜{v.endTime}</span>
+                      {v.visitResult&&v.visitResult!=='未記録' && <span style={{fontSize:11,fontWeight:600,color:resultColor,background:v.visitResult==='対面挨拶'?'#dcfce7':v.visitResult==='不在'?'#fee2e2':'#f3f4f6',padding:'2px 8px',borderRadius:10}}>{v.visitResult}</span>}
+                    </div>
+                    <div style={{color:'#6b7280',marginTop:2}}>
+                      {s?.name||'不明'}{v.contactPerson&&` → ${v.contactPerson}`}{v.memo&&` ・${v.memo}`}
+                    </div>
+                  </div>
+                );
+              }) : <p style={{fontSize:12,color:'#9ca3af'}}>訪問履歴がありません</p>}
+              {visits.length>10 && <p style={{fontSize:11,color:'#9ca3af',marginTop:8,textAlign:'center'}}>他 {visits.length-10}件の履歴</p>}
+            </div>
+          );
+        })()}
+
+        {/* 紹介利用者セクション */}
+        {(() => {
+          const refs = office.referrals||[];
+          const totalRef = refs.length;
+          const acceptedCount = refs.filter(r=>r.status==='受入済').length;
+          const adjustingCount = refs.filter(r=>r.status==='調整中').length;
+          const declinedCount = refs.filter(r=>r.status==='見送り').length;
+          const stColor = s => s==='受入済'?{bg:'#dcfce7',c:'#059669'}:s==='調整中'?{bg:'#fef3c7',c:'#92400e'}:s==='見送り'?{bg:'#fee2e2',c:'#ef4444'}:{bg:'#dbeafe',c:'#1d4ed8'};
+          return (
+            <div style={{marginTop:24,borderTop:'1px solid #e5e7eb',paddingTop:16}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                <h3 style={{fontSize:14,fontWeight:700}}>🤝 紹介利用者</h3>
+                <button className="btn btn-primary btn-sm" onClick={()=>setAddingReferral(true)}>＋ 追加</button>
+              </div>
+              <div style={{display:'flex',gap:10,marginBottom:16,flexWrap:'wrap'}}>
+                <div style={{background:'#f5f3ff',borderRadius:8,padding:'8px 14px',textAlign:'center',flex:1,minWidth:60}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#7c3aed'}}>{totalRef}</div>
+                  <div style={{fontSize:10,color:'#6b7280'}}>紹介総数</div>
+                </div>
+                <div style={{background:'#f0fdf4',borderRadius:8,padding:'8px 14px',textAlign:'center',flex:1,minWidth:60}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#059669'}}>{acceptedCount}</div>
+                  <div style={{fontSize:10,color:'#6b7280'}}>受入済</div>
+                </div>
+                <div style={{background:'#fef3c7',borderRadius:8,padding:'8px 14px',textAlign:'center',flex:1,minWidth:60}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#92400e'}}>{adjustingCount}</div>
+                  <div style={{fontSize:10,color:'#6b7280'}}>調整中</div>
+                </div>
+                <div style={{background:'#fef2f2',borderRadius:8,padding:'8px 14px',textAlign:'center',flex:1,minWidth:60}}>
+                  <div style={{fontSize:20,fontWeight:800,color:'#ef4444'}}>{declinedCount}</div>
+                  <div style={{fontSize:10,color:'#6b7280'}}>見送り</div>
+                </div>
+              </div>
+
+              {addingReferral && (
+                <div style={{background:'#faf5ff',borderRadius:10,padding:14,marginBottom:12}}>
+                  <div className="form-group"><label>利用者名 *</label><input value={newRef.name} onChange={setRef('name')} placeholder="山田 太郎"/></div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                    <div className="form-group"><label>紹介日</label><input type="date" value={newRef.date} onChange={setRef('date')}/></div>
+                    <div className="form-group"><label>保険種別</label>
+                      <select value={newRef.insurance} onChange={setRef('insurance')}>{INSURANCES.map(i=><option key={i}>{i}</option>)}</select>
+                    </div>
+                  </div>
+                  <div className="form-group"><label>状態</label>
+                    <select value={newRef.status} onChange={setRef('status')}>{REFERRAL_STATUSES.map(s=><option key={s}>{s}</option>)}</select>
+                  </div>
+                  <div className="form-group"><label>備考</label><input value={newRef.note} onChange={setRef('note')} placeholder="要介護度、希望頻度など"/></div>
+                  <div style={{display:'flex',gap:8,marginTop:8}}>
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setAddingReferral(false)}>キャンセル</button>
+                    <button className="btn btn-primary btn-sm" onClick={addReferral}>追加</button>
+                  </div>
+                </div>
+              )}
+
+              {refs.map(r => {
+                const sc = stColor(r.status);
+                return (
+                  <div key={r.id} style={{padding:'10px 0',borderBottom:'1px solid #f3f4f6',fontSize:12}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <div>
+                        <span style={{fontWeight:600,color:'#1a1a2e',fontSize:13}}>{r.name}</span>
+                        <span style={{fontSize:10,color:'#9ca3af',marginLeft:6}}>{r.insurance||''}</span>
+                      </div>
+                      <div style={{display:'flex',alignItems:'center',gap:4}}>
+                        <select value={r.status} onChange={e=>updateReferralStatus(r.id,e.target.value)}
+                          style={{fontSize:10,fontWeight:600,padding:'2px 6px',borderRadius:10,border:'none',cursor:'pointer',background:sc.bg,color:sc.c}}>
+                          {REFERRAL_STATUSES.map(s=><option key={s}>{s}</option>)}
+                        </select>
+                        <button onClick={()=>deleteReferral(r.id)} style={{background:'none',border:'none',color:'#d1d5db',cursor:'pointer',fontSize:14}} title="削除">✕</button>
+                      </div>
+                    </div>
+                    <div style={{color:'#6b7280',marginTop:2}}>{r.date}{r.note&&` ・${r.note}`}</div>
+                  </div>
+                );
+              })}
+              {refs.length===0 && !addingReferral && <p style={{fontSize:12,color:'#9ca3af',textAlign:'center',padding:8}}>紹介利用者がまだありません</p>}
+            </div>
+          );
+        })()}
+
+        {/* 担当者セクション */}
+        <div style={{marginTop:24,borderTop:'1px solid #e5e7eb',paddingTop:16}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+            <h3 style={{fontSize:14,fontWeight:700}}>👤 担当者</h3>
+            <button className="btn btn-primary btn-sm" onClick={()=>setAddingContact(true)}>＋ 追加</button>
+          </div>
+          {(office.contacts||[]).map((c,i) => (
+            <div key={i} style={{padding:'10px 0',borderBottom:'1px solid #f3f4f6',fontSize:13,display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+              <div>
+                <strong>{c.name}</strong> {c.role && <span style={{color:'#6b7280'}}>({c.role})</span>}
+                {c.phone && <div><a href={`tel:${c.phone}`} style={{color:'#7c3aed',fontSize:12}}>📞 {c.phone}</a></div>}
+                {c.email && <div><a href={`mailto:${c.email}`} style={{color:'#3b82f6',fontSize:12}}>✉️ {c.email}</a></div>}
+              </div>
+              <button onClick={()=>deleteContact(i)} style={{background:'none',border:'none',color:'#d1d5db',cursor:'pointer',fontSize:14}} title="削除">✕</button>
+            </div>
+          ))}
+          {(office.contacts||[]).length===0 && !addingContact && <p style={{fontSize:12,color:'#9ca3af'}}>担当者が登録されていません</p>}
+
+          {addingContact && (
+            <div style={{background:'#faf5ff',borderRadius:10,padding:14,marginTop:8}}>
+              <div className="form-group"><label>名前 *</label><input value={newC.name} onChange={setC('name')} placeholder="田中 太郎"/></div>
+              <div className="form-group"><label>役職</label><input value={newC.role} onChange={setC('role')} placeholder="ケアマネジャー"/></div>
+              <div className="form-group"><label>電話番号</label><input value={newC.phone} onChange={setC('phone')} placeholder="090-XXXX-XXXX"/></div>
+              <div className="form-group"><label>メールアドレス</label><input value={newC.email} onChange={setC('email')} placeholder="name@example.com"/></div>
+              <div style={{display:'flex',gap:8,marginTop:8}}>
+                <button className="btn btn-ghost btn-sm" onClick={()=>setAddingContact(false)}>キャンセル</button>
+                <button className="btn btn-primary btn-sm" onClick={addContact}>追加</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── DETAIL PANEL ───
+function DetailPanel({data, detailId, setDetailId, updateDeal, deleteDeal, addAction, upData, setModal}) {
+  const [tab, setTab] = useState('info');
+  if(!detailId) return null;
+
+  // Check if it's an office detail
+  if(detailId.startsWith('office-')) {
+    return <OfficeDetailPanel data={data} detailId={detailId} setDetailId={setDetailId} upData={upData} setModal={setModal}/>;
+  }
+
+  // Deal detail
+  const deal = data.deals.find(d=>d.id===detailId);
+  if(!deal) { setDetailId(null); return null; }
+  const office = data.offices.find(o=>o.id===deal.officeId);
+  const dealActions = data.actions.filter(a=>a.dealId===deal.id);
+
+  return (
+    <div className="detail-panel">
+      <div className="detail-header">
+        <h2>{deal.title||'無題の案件'}</h2>
+        <button onClick={()=>setDetailId(null)} style={{fontSize:20,background:'none',border:'none',cursor:'pointer',color:'#9ca3af'}}>✕</button>
+      </div>
+      <div className="detail-tabs">
+        <div className={`detail-tab ${tab==='info'?'active':''}`} onClick={()=>setTab('info')}>詳細</div>
+        <div className={`detail-tab ${tab==='actions'?'active':''}`} onClick={()=>setTab('actions')}>アクション ({dealActions.length})</div>
+      </div>
+      <div className="detail-body">
+        {tab==='info' && (
+          <div>
+            <div className="form-group"><label>営業先</label><p style={{fontSize:13,fontWeight:600}}>{office?.name||'-'}</p></div>
+            <div className="form-group"><label>フェーズ</label>
+              <select value={deal.result||deal.phase} onChange={e=>{
+                const v=e.target.value;
+                if(RESULTS.includes(v)) updateDeal(deal.id,{result:v});
+                else updateDeal(deal.id,{phase:v, result:null});
+              }}>
+                {(data.settings?.phases||DEFAULT_PHASES).map(p=><option key={p}>{p}</option>)}
+                <optgroup label="結果">{RESULTS.map(r=><option key={r}>{r}</option>)}</optgroup>
+              </select>
+            </div>
+            <div className="form-group"><label>金額</label><input type="number" value={deal.amount||''} onChange={e=>updateDeal(deal.id,{amount:e.target.value})}/></div>
+            <div className="form-group"><label>メモ</label><textarea rows="3" value={deal.memo||''} onChange={e=>updateDeal(deal.id,{memo:e.target.value})}/></div>
+            <button className="btn btn-ghost" style={{color:'#ef4444',marginTop:12,fontSize:12}} onClick={()=>{if(window.confirm('この案件を削除しますか？')){deleteDeal(deal.id);setDetailId(null);}}}>削除</button>
+          </div>
+        )}
+        {tab==='actions' && (
+          <div>
+            <button className="btn btn-primary btn-sm" style={{marginBottom:12}} onClick={()=>{
+              const title = prompt('アクション内容を入力：');
+              if(title) addAction({title, dealId:deal.id, officeId:deal.officeId, type:'対応'});
+              updateDeal(deal.id, {lastActionDate: today()});
+            }}>＋ アクション追加</button>
+            {dealActions.map(a => (
+              <div key={a.id} className="action-item">
+                <div className="action-dot"></div>
+                <div className="action-content">
+                  <div className="action-title">{a.title}</div>
+                  <div className="action-time">{a.date}</div>
+                </div>
+              </div>
+            ))}
+            {dealActions.length===0 && <p style={{color:'#9ca3af',fontSize:13}}>まだアクションがありません</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL WRAPPER ───
+function ModalWrapper({modal, setModal, data, addDeal, addContact, addAction, upData}) {
+  if(!modal) return null;
+  return (
+    <div className="modal-overlay" onClick={()=>setModal(null)}>
+      <div className="modal-box" onClick={e=>e.stopPropagation()}>
+        {modal.type==='newOffice' && <NewOfficeForm data={data} upData={upData} onClose={()=>setModal(null)}/>}
+        {modal.type==='newDeal' && <NewDealForm offices={data.offices} phases={data.settings?.phases||DEFAULT_PHASES} onSave={d=>{addDeal(d);setModal(null);}} onClose={()=>setModal(null)}/>}
+        {modal.type==='newContact' && <NewContactForm offices={data.offices} onSave={c=>{addContact(c);setModal(null);}} onClose={()=>setModal(null)}/>}
+        {modal.type==='newAction' && <NewActionForm offices={data.offices} deals={data.deals} onSave={a=>{addAction(a);setModal(null);}} onClose={()=>setModal(null)}/>}
+        {modal.type==='scanCard' && <ScanCardForm offices={data.offices} settings={data.settings} onSave={c=>{addContact(c);setModal(null);}} onClose={()=>setModal(null)}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── FORMS ───
+function NewOfficeForm({data, upData, onClose}) {
+  const [f, setF] = useState({name:'',category:'',address:'',phone:'',email:'',org:''});
+  const [contact, setContact] = useState({name:'',role:'',phone:'',email:''});
+  const [msg, setMsg] = useState('');
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  const setC = k => e => setContact(p=>({...p,[k]:e.target.value}));
+
+  const allCategories = [...new Set([...data.offices.map(o=>o.category), ...(data.settings?.customCategories||[])])].sort();
+
+  const save = () => {
+    if(!f.name.trim()) { setMsg('事業所名を入力してください'); return; }
+    if(!f.category) { setMsg('種別を選択してください'); return; }
+    const exists = data.offices.some(o=>o.name===f.name.trim());
+    if(exists) { setMsg('同名の営業先が既に存在します'); return; }
+    const contacts = contact.name.trim() ? [{name:contact.name.trim(),role:contact.role,phone:contact.phone,email:contact.email}] : [];
+    upData(d => ({...d, offices: [...d.offices, {id:uid(), name:f.name.trim(), category:f.category, address:f.address, phone:f.phone, email:f.email, org:f.org, contacts, visits:[], referrals:[]}]}));
+    onClose();
+  };
+
+  return (
+    <div>
+      <h2>営業先を追加</h2>
+      <div className="form-group"><label>事業所名 *</label><input value={f.name} onChange={set('name')} placeholder="例：一宮中央地域包括支援センター"/></div>
+      <div className="form-group"><label>種別 *</label>
+        <select value={f.category} onChange={set('category')} style={{color:f.category?'#1a1a2e':'#9ca3af'}}>
+          <option value="" disabled>カテゴリーを選択...</option>
+          {allCategories.map(c=><option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div className="form-group"><label>住所</label><input value={f.address} onChange={set('address')} placeholder="例：愛知県一宮市..."/></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+        <div className="form-group"><label>電話番号</label><input value={f.phone} onChange={set('phone')} placeholder="0586-XX-XXXX"/></div>
+        <div className="form-group"><label>メールアドレス</label><input value={f.email} onChange={set('email')} placeholder="example@kaigo.jp"/></div>
+      </div>
+      <div style={{borderTop:'1px solid #e5e7eb',marginTop:12,paddingTop:12}}>
+        <h3 style={{fontSize:13,fontWeight:700,marginBottom:8,color:'#374151'}}>👤 担当者（任意）</h3>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          <div className="form-group"><label>担当者名</label><input value={contact.name} onChange={setC('name')} placeholder="山田 太郎"/></div>
+          <div className="form-group"><label>役職</label><input value={contact.role} onChange={setC('role')} placeholder="ケアマネジャー"/></div>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+          <div className="form-group"><label>担当者電話</label><input value={contact.phone} onChange={setC('phone')} placeholder="090-XXXX-XXXX"/></div>
+          <div className="form-group"><label>担当者メール</label><input value={contact.email} onChange={setC('email')} placeholder="yamada@kaigo.jp"/></div>
+        </div>
+      </div>
+      {msg && <p style={{color:'#ef4444',fontSize:12,marginTop:8}}>{msg}</p>}
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>キャンセル</button>
+        <button className="btn btn-primary" style={{flex:1}} onClick={save}>追加</button>
+      </div>
+    </div>
+  );
+}
+
+function NewDealForm({offices, phases, onSave, onClose}) {
+  const [f, setF] = useState({title:'',officeId:'',phase:phases[0],amount:'',memo:''});
+  const [q, setQ] = useState('');
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  const sel = offices.find(o=>o.id===f.officeId);
+  const filt = offices.filter(o=>o.name.includes(q)).slice(0,8);
+  return (
+    <div>
+      <h2>新規案件</h2>
+      <div className="form-group"><label>営業先 *</label>
+        {sel ? <div style={{padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,background:'#faf5ff'}}>
+          <strong>{sel.name}</strong> <button onClick={()=>setF(p=>({...p,officeId:''}))} style={{marginLeft:8,color:'#7c3aed',background:'none',border:'none',cursor:'pointer',fontSize:12}}>変更</button>
+        </div> : <div style={{position:'relative'}}>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="事業所名で検索..."/>
+          {q && <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e5e7eb',borderRadius:8,maxHeight:200,overflowY:'auto',zIndex:10,boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
+            {filt.map(o=><div key={o.id} onClick={()=>{setF(p=>({...p,officeId:o.id,title:o.name+' 案件'}));setQ('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f3f4f6'}} onMouseOver={e=>e.target.style.background='#faf5ff'} onMouseOut={e=>e.target.style.background=''}>{o.name}</div>)}
+          </div>}
+        </div>}
+      </div>
+      <div className="form-group"><label>案件名 *</label><input value={f.title} onChange={set('title')} placeholder="案件の名前"/></div>
+      <div className="form-group"><label>フェーズ</label><select value={f.phase} onChange={set('phase')}>{phases.map(p=><option key={p}>{p}</option>)}</select></div>
+      <div className="form-group"><label>金額</label><input type="number" value={f.amount} onChange={set('amount')} placeholder="0"/></div>
+      <div className="form-group"><label>メモ</label><textarea rows="2" value={f.memo} onChange={set('memo')}/></div>
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>キャンセル</button>
+        <button className="btn btn-primary" style={{flex:1}} onClick={()=>f.title&&f.officeId&&onSave(f)}>追加</button>
+      </div>
+    </div>
+  );
+}
+
+function NewContactForm({offices, onSave, onClose}) {
+  const [f, setF] = useState({name:'',role:'',phone:'',email:'',officeId:''});
+  const [q, setQ] = useState('');
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  const sel = offices.find(o=>o.id===f.officeId);
+  const filt = offices.filter(o=>o.name.includes(q)).slice(0,8);
+  return (
+    <div>
+      <h2>コンタクト追加</h2>
+      <div className="form-group"><label>事業所 *</label>
+        {sel ? <div style={{padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,background:'#faf5ff'}}>
+          <strong>{sel.name}</strong> <button onClick={()=>setF(p=>({...p,officeId:''}))} style={{marginLeft:8,color:'#7c3aed',background:'none',border:'none',cursor:'pointer',fontSize:12}}>変更</button>
+        </div> : <div style={{position:'relative'}}>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="事業所名で検索..."/>
+          {q && <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e5e7eb',borderRadius:8,maxHeight:200,overflowY:'auto',zIndex:10,boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
+            {filt.map(o=><div key={o.id} onClick={()=>{setF(p=>({...p,officeId:o.id}));setQ('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f3f4f6'}} onMouseOver={e=>e.target.style.background='#faf5ff'} onMouseOut={e=>e.target.style.background=''}>{o.name}</div>)}
+          </div>}
+        </div>}
+      </div>
+      <div className="form-group"><label>名前 *</label><input value={f.name} onChange={set('name')} placeholder="田中 太郎"/></div>
+      <div className="form-group"><label>役職</label><input value={f.role} onChange={set('role')} placeholder="ケアマネジャー"/></div>
+      <div className="form-group"><label>電話番号</label><input value={f.phone} onChange={set('phone')} placeholder="090-XXXX-XXXX"/></div>
+      <div className="form-group"><label>メールアドレス</label><input value={f.email} onChange={set('email')} placeholder="name@example.com"/></div>
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>キャンセル</button>
+        <button className="btn btn-primary" style={{flex:1}} onClick={()=>f.name&&f.officeId&&onSave(f)}>追加</button>
+      </div>
+    </div>
+  );
+}
+
+function NewActionForm({offices, deals, onSave, onClose}) {
+  const [f, setF] = useState({title:'',officeId:'',dealId:'',type:'訪問',memo:''});
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  return (
+    <div>
+      <h2>アクション追加</h2>
+      <div className="form-group"><label>内容 *</label><input value={f.title} onChange={set('title')} placeholder="訪問・電話・メールなど"/></div>
+      <div className="form-group"><label>種類</label><select value={f.type} onChange={set('type')}>{['訪問','電話','メール','会議','その他'].map(t=><option key={t}>{t}</option>)}</select></div>
+      <div className="form-group"><label>メモ</label><textarea rows="2" value={f.memo} onChange={set('memo')}/></div>
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>キャンセル</button>
+        <button className="btn btn-primary" style={{flex:1}} onClick={()=>f.title&&onSave(f)}>追加</button>
+      </div>
+    </div>
+  );
+}
+
+function ScanCardForm({offices, settings, onSave, onClose}) {
+  const [f, setF] = useState({name:'',role:'',phone:'',email:'',officeId:''});
+  const [scanning, setScanning] = useState(false);
+  const [status, setStatus] = useState('');
+  const [q, setQ] = useState('');
+  const fileRef = useRef();
+  const set = k => e => setF(p=>({...p,[k]:e.target.value}));
+  const sel = offices.find(o=>o.id===f.officeId);
+  const filt = offices.filter(o=>o.name.includes(q)).slice(0,8);
+
+  const PROMPT = 'この名刺から以下の情報をJSON形式で抽出してください。\n{"name":"氏名","role":"役職","phone":"電話番号","email":"メールアドレス"}\n情報がない場合は空文字。JSONのみ返してください。';
+
+  const scan = async (file) => {
+    const apiKey = settings?.apiKey; const gasUrl = settings?.syncUrl;
+    if(!gasUrl && !apiKey) { setStatus('⚠️ 設定画面でAPIキーかGAS URLを設定してください'); return; }
+    setScanning(true); setStatus('📷 解析中...');
+    try {
+      const b64 = await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});
+      const payload = {model:'claude-sonnet-4-20250514',max_tokens:512,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:file.type,data:b64}},{type:'text',text:PROMPT}]}]};
+      let json;
+      if(gasUrl){const resp=await fetch(gasUrl,{method:'POST',body:JSON.stringify({action:'scan',payload})});json=await resp.json();}
+      else{const resp=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify(payload)});json=await resp.json();}
+      const txt=json.content?.[0]?.text||'';const match=txt.match(/\{[\s\S]*\}/);
+      if(match){const parsed=JSON.parse(match[0]);setF(p=>({...p,...parsed}));setStatus('✅ 読み取り完了！');}
+      else setStatus('⚠️ 読み取れませんでした');
+    } catch(e){setStatus('❌ '+e.message);}
+    setScanning(false);
+  };
+
+  return (
+    <div>
+      <h2>📇 名刺スキャン</h2>
+      <div style={{background:'#faf5ff',borderRadius:10,padding:16,marginBottom:16}}>
+        <button className="btn btn-primary" style={{width:'100%'}} onClick={()=>fileRef.current?.click()} disabled={scanning}>{scanning?'解析中...':'📷 名刺の写真を選択'}</button>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={e=>e.target.files[0]&&scan(e.target.files[0])}/>
+        {status && <p style={{fontSize:12,color:'#6b7280',marginTop:8}}>{status}</p>}
+      </div>
+      <div className="form-group"><label>事業所 *</label>
+        {sel ? <div style={{padding:'8px 12px',border:'1px solid #e2e8f0',borderRadius:8,background:'#faf5ff'}}>
+          <strong>{sel.name}</strong> <button onClick={()=>setF(p=>({...p,officeId:''}))} style={{marginLeft:8,color:'#7c3aed',background:'none',border:'none',cursor:'pointer',fontSize:12}}>変更</button>
+        </div> : <div style={{position:'relative'}}>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="事業所名で検索..."/>
+          {q && <div style={{position:'absolute',top:'100%',left:0,right:0,background:'#fff',border:'1px solid #e5e7eb',borderRadius:8,maxHeight:200,overflowY:'auto',zIndex:10,boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}}>
+            {filt.map(o=><div key={o.id} onClick={()=>{setF(p=>({...p,officeId:o.id}));setQ('');}} style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid #f3f4f6'}} onMouseOver={e=>e.target.style.background='#faf5ff'} onMouseOut={e=>e.target.style.background=''}>{o.name}</div>)}
+          </div>}
+        </div>}
+      </div>
+      <div className="form-group"><label>名前 *</label><input value={f.name} onChange={set('name')}/></div>
+      <div className="form-group"><label>役職</label><input value={f.role} onChange={set('role')}/></div>
+      <div className="form-group"><label>電話番号</label><input value={f.phone} onChange={set('phone')}/></div>
+      <div className="form-group"><label>メールアドレス</label><input value={f.email} onChange={set('email')}/></div>
+      <div style={{display:'flex',gap:8,marginTop:16}}>
+        <button className="btn btn-ghost" style={{flex:1}} onClick={onClose}>キャンセル</button>
+        <button className="btn btn-primary" style={{flex:1}} onClick={()=>f.name&&f.officeId&&onSave(f)}>登録</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── RENDER ───
+ReactDOM.render(<App/>, document.getElementById('root'));
+</script>
+</body>
+</html>
