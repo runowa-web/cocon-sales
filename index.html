@@ -1352,7 +1352,7 @@ function SalesCalendar({data, upData, setModal}) {
         <CalendarGrid staff={staff} events={events} offices={data.offices} categoryColors={data.settings?.categoryColors||{}} onDrop={handleDrop} dragData={dragData} setDragData={setDragData} onClickEvent={ev=>setCalModal({type:'edit',event:ev})}/>
         <CalUnassigned offices={data.offices} categoryColors={data.settings?.categoryColors||{}} setDragData={setDragData} currentDate={currentDate} calendarEvents={data.calendarEvents||[]}/>
       </div>
-      {calModal && <CalEventModal modal={calModal} setModal={setCalModal} staff={staff} offices={data.offices} calendarEvents={data.calendarEvents||[]} upData={upData} currentDate={currentDate}/>}
+      {calModal && <CalEventModal modal={calModal} setModal={setCalModal} staff={staff} offices={data.offices} calendarEvents={data.calendarEvents||[]} upData={upData} currentDate={currentDate} data={data}/>}
     </div>
   );
 }
@@ -1493,7 +1493,7 @@ function CalUnassigned({offices, categoryColors, setDragData, currentDate, calen
   );
 }
 
-function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData, currentDate}) {
+function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData, currentDate, data}) {
   const isEdit = modal.type==='edit';
   const ev = isEdit ? modal.event : null;
   const VISIT_RESULTS = ['未記録','対面挨拶','パンフレット・名刺のみお渡し','不在'];
