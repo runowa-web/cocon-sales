@@ -1539,22 +1539,11 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
     e.target.value = '';
   };
 
-  const save = () => {
-    if(!f.staffId) return;
-    if(!isVisitorVisit && !f.officeId) return; // 営業先は営業記録の場合のみ必須
-    const eventData = {...f, visitType: isVisitorVisit ? '利用者訪問' : '営業'};
-    if(isEdit) { upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===ev.id?{...e,...eventData}:e)})); }
-    else { upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),...eventData}]})); }
-    // Googleカレンダー自動連携（全件）
-    syncToGoogleCal(eventData);
-    setModal(null);
-  };
-
   const syncToGoogleCal = (eventData) => {
-    if(!GCAL_SCRIPT_URL) return; // 未設定ならスキップ
+    if(!GCAL_SCRIPT_URL) { console.log('Gcal: URL未設定'); return; }
     try {
       const s = staff.find(x=>x.id===eventData.staffId);
-      if(!s) return;
+      if(!s) { console.log('Gcal: スタッフ不明', eventData.staffId); return; }
 
       const isVisitor = eventData.visitType === '利用者訪問' || eventData.memo?.includes('利用者訪問') || eventData.category === '利用者訪問';
 
@@ -1567,7 +1556,7 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
       } else {
         // 営業先訪問
         const o = offices.find(x=>x.id===eventData.officeId);
-        if(!o) return;
+        if(!o) { console.log('Gcal: 営業先不明', eventData.officeId); return; }
         summary = `${o.name}　${s.name}`;
         eventAddress = eventData.customAddress || o.address || '';
         desc = `訪問結果: ${eventData.visitResult||'未記録'}\n担当者: ${eventData.contactPerson||'-'}\nメモ: ${eventData.memo||'-'}`;
@@ -1581,11 +1570,23 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
       const officeCalId = data.settings?.officeCalendarId || '';
       const visitorCalId = data.settings?.visitorCalendarId || '';
       const targetCalendarId = isVisitor ? visitorCalId : officeCalId;
+      console.log('📅 Gcal送信中...', {summary, start: startISO, end: endISO, calendarType, targetCalendarId: targetCalendarId || '(デフォルト)'});
       const params = new URLSearchParams({summary, start: startISO, end: endISO, location: eventAddress, description: desc, calendarType, targetCalendarId});
       fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
-        .then(() => console.log(`📅 Gcal自動登録リクエスト送信 (${calendarType})`))
+        .then(() => console.log(`📅 Gcal自動登録リクエスト送信完了 (${calendarType})`))
         .catch(e => console.log('Gcal送信エラー:', e));
     } catch(e) { console.log('Gcal sync error', e); }
+  };
+
+  const save = () => {
+    if(!f.staffId) return;
+    if(!isVisitorVisit && !f.officeId) return; // 営業先は営業記録の場合のみ必須
+    const eventData = {...f, visitType: isVisitorVisit ? '利用者訪問' : '営業'};
+    if(isEdit) { upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===ev.id?{...e,...eventData}:e)})); }
+    else { upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),...eventData}]})); }
+    // Googleカレンダー自動連携（全件）
+    syncToGoogleCal(eventData);
+    setModal(null);
   };
 
   const del = () => {
