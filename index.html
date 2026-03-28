@@ -1315,10 +1315,12 @@ function SalesCalendar({data, upData, setModal}) {
       }
       const startISO = `${eventData.date}T${eventData.startTime}:00`;
       const endISO = `${eventData.date}T${eventData.endTime}:00`;
-      const calendarType = isVisitorType ? 'visitor' : 'office';
+      const isPreVisit = eventData.visitType === '事前訪問・契約';
+      const calendarType = isPreVisit ? 'previsit' : (isVisitorType ? 'visitor' : 'office');
       const officeCalId = data.settings?.officeCalendarId || '';
       const visitorCalId = data.settings?.visitorCalendarId || '';
-      const targetCalendarId = isVisitorType ? visitorCalId : officeCalId;
+      const preVisitCalId = data.settings?.preVisitCalendarId || '';
+      const targetCalendarId = isPreVisit ? preVisitCalId : (isVisitorType ? visitorCalId : officeCalId);
       const params = new URLSearchParams({summary, start: startISO, end: endISO, location: eventAddress, description: desc, calendarType, targetCalendarId});
       fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
         .then(() => console.log(`📅 Gcal登録 (${calendarType}): ${summary}`))
@@ -1617,10 +1619,12 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
       const startISO = `${dateStr}T${eventData.startTime}:00`;
       const endISO = `${dateStr}T${eventData.endTime}:00`;
 
-      const calendarType = isVisitor ? 'visitor' : 'office';
+      const isPreVisit = eventData.visitType === '事前訪問・契約';
+      const calendarType = isPreVisit ? 'previsit' : (isVisitor ? 'visitor' : 'office');
       const officeCalId = data.settings?.officeCalendarId || '';
       const visitorCalId = data.settings?.visitorCalendarId || '';
-      const targetCalendarId = isVisitor ? visitorCalId : officeCalId;
+      const preVisitCalId = data.settings?.preVisitCalendarId || '';
+      const targetCalendarId = isPreVisit ? preVisitCalId : (isVisitor ? visitorCalId : officeCalId);
       const params = new URLSearchParams({summary, start: startISO, end: endISO, location: eventAddress, description: desc, calendarType, targetCalendarId});
       fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
         .then(() => console.log(`📅 Gcal登録 (${calendarType}): ${summary}`))
@@ -1657,7 +1661,8 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
       const startISO = `${ev.date}T${ev.startTime}:00`;
       const visCalId = data.settings?.visitorCalendarId || '';
       const offCalId = data.settings?.officeCalendarId || '';
-      const targetCalendarId = isVis ? visCalId : offCalId;
+      const preCalId = data.settings?.preVisitCalendarId || '';
+      const targetCalendarId = ev.visitType === '事前訪問・契約' ? preCalId : (isVis ? visCalId : offCalId);
       const params = new URLSearchParams({action:'delete', summary:delSummary, start:startISO, targetCalendarId});
       fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
         .then(() => console.log('📅 Gcal削除リクエスト送信: ' + delSummary))
@@ -1822,6 +1827,7 @@ function Settings({data, upData}) {
   const [syncUrl, setSyncUrl] = useState(data.settings?.syncUrl||'');
   const [officeCalendarId, setOfficeCalendarId] = useState(data.settings?.officeCalendarId||'');
   const [visitorCalendarId, setVisitorCalendarId] = useState(data.settings?.visitorCalendarId||'');
+  const [preVisitCalendarId, setPreVisitCalendarId] = useState(data.settings?.preVisitCalendarId||'');
   const [msg, setMsg] = useState('');
   const [newCat, setNewCat] = useState('');
   const [catMsg, setCatMsg] = useState('');
@@ -1832,7 +1838,7 @@ function Settings({data, upData}) {
   const [editingStaffId, setEditingStaffId] = useState(null);
   const [editStaff, setEditStaff] = useState({name:'',role:'',color:''});
   const saveSettings = () => {
-    upData(d => ({...d, settings:{...d.settings, apiKey:apiKey.trim(), syncUrl:syncUrl.trim(), officeCalendarId:officeCalendarId.trim(), visitorCalendarId:visitorCalendarId.trim()}}));
+    upData(d => ({...d, settings:{...d.settings, apiKey:apiKey.trim(), syncUrl:syncUrl.trim(), officeCalendarId:officeCalendarId.trim(), visitorCalendarId:visitorCalendarId.trim(), preVisitCalendarId:preVisitCalendarId.trim()}}));
     setMsg('保存しました'); setTimeout(()=>setMsg(''),2000);
   };
   const resetData = () => {
@@ -1996,13 +2002,13 @@ function Settings({data, upData}) {
           <button className="btn btn-primary" onClick={addStaff}>追加</button>
         </div>
       </div>
-      <AdminSection resetData={resetData} apiKey={apiKey} setApiKey={setApiKey} syncUrl={syncUrl} setSyncUrl={setSyncUrl} officeCalendarId={officeCalendarId} setOfficeCalendarId={setOfficeCalendarId} visitorCalendarId={visitorCalendarId} setVisitorCalendarId={setVisitorCalendarId} saveSettings={saveSettings} msg={msg}/>
+      <AdminSection resetData={resetData} apiKey={apiKey} setApiKey={setApiKey} syncUrl={syncUrl} setSyncUrl={setSyncUrl} officeCalendarId={officeCalendarId} setOfficeCalendarId={setOfficeCalendarId} visitorCalendarId={visitorCalendarId} setVisitorCalendarId={setVisitorCalendarId} preVisitCalendarId={preVisitCalendarId} setPreVisitCalendarId={setPreVisitCalendarId} saveSettings={saveSettings} msg={msg}/>
     </div>
   );
 }
 
 // ─── 管理者画面 ───
-function AdminSection({resetData, apiKey, setApiKey, syncUrl, setSyncUrl, officeCalendarId, setOfficeCalendarId, visitorCalendarId, setVisitorCalendarId, saveSettings, msg}) {
+function AdminSection({resetData, apiKey, setApiKey, syncUrl, setSyncUrl, officeCalendarId, setOfficeCalendarId, visitorCalendarId, setVisitorCalendarId, preVisitCalendarId, setPreVisitCalendarId, saveSettings, msg}) {
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -2030,6 +2036,7 @@ function AdminSection({resetData, apiKey, setApiKey, syncUrl, setSyncUrl, office
             <h4 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>📅 Googleカレンダー設定</h4>
             <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>営業先と利用者訪問を別々のカレンダーに登録します</p>
             <div className="form-group"><label>営業先カレンダーID</label><input value={officeCalendarId} onChange={e=>setOfficeCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
+            <div className="form-group"><label>事前訪問・契約カレンダーID</label><input value={preVisitCalendarId} onChange={e=>setPreVisitCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
             <div className="form-group"><label>利用者訪問カレンダーID</label><input value={visitorCalendarId} onChange={e=>setVisitorCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
             {msg && <p style={{color:'#059669',fontSize:12,marginBottom:8}}>{msg}</p>}
             <button className="btn btn-primary btn-sm" onClick={saveSettings}>保存</button>
