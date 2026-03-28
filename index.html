@@ -1294,6 +1294,39 @@ function SalesCalendar({data, upData, setModal}) {
 
   const shiftDate = n => { const d=new Date(currentDate); d.setDate(d.getDate()+n); setCurrentDate(d.toISOString().split('T')[0]); };
 
+  // ドラッグ＆ドロップ時のGoogleカレンダー同期ヘルパー
+  const syncDropToGcal = (eventData) => {
+    if(!GCAL_SCRIPT_URL) return;
+    try {
+      const s = staff.find(x=>x.id===eventData.staffId);
+      if(!s) return;
+      const isVisitor = eventData.visitType === '利用者訪問';
+      let summary, eventAddress, desc;
+      if(isVisitor) {
+        summary = `${eventData.visitorName||'利用者'}（利用者訪問）　${s.name}`;
+        eventAddress = eventData.visitorPhone || '';
+        desc = `利用者名: ${eventData.visitorName||'-'}\nメモ: ${eventData.memo||'-'}`;
+      } else {
+        const o = data.offices.find(x=>x.id===eventData.officeId);
+        if(!o) return;
+        summary = `${o.name}　${s.name}`;
+        eventAddress = o.address || '';
+        desc = `メモ: ${eventData.memo||'-'}`;
+      }
+      const startISO = `${eventData.date}T${eventData.startTime}:00`;
+      const endISO = `${eventData.date}T${eventData.endTime}:00`;
+      const calendarType = isVisitor ? 'visitor' : 'office';
+      const officeCalId = data.settings?.officeCalendarId || '';
+      const visitorCalId = data.settings?.visitorCalendarId || '';
+      const targetCalendarId = isVisitor ? visitorCalId : officeCalId;
+      console.log('📅 Gcal送信中（ドロップ）...', {summary, start: startISO, end: endISO, calendarType});
+      const params = new URLSearchParams({summary, start: startISO, end: endISO, location: eventAddress, description: desc, calendarType, targetCalendarId});
+      fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
+        .then(() => console.log(`📅 Gcal自動登録完了 (${calendarType})`))
+        .catch(e => console.log('Gcal送信エラー:', e));
+    } catch(e) { console.log('Gcal sync error', e); }
+  };
+
   const handleDrop = (staffId, hour, quarter) => {
     if(!dragData) return;
     const startMin = hour*60 + quarter*15;
@@ -1301,7 +1334,9 @@ function SalesCalendar({data, upData, setModal}) {
     const endMin = startMin + durMin;
     const toTime = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
     if(dragData.type==='unassigned') {
-      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),officeId:dragData.officeId,staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'営業'}]}));
+      const newEvent = {id:uid(),officeId:dragData.officeId,staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'営業'};
+      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), newEvent]}));
+      syncDropToGcal(newEvent);
     } else if(dragData.type==='move') {
       upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===dragData.eventId?{...e,staffId,startTime:toTime(startMin),endTime:toTime(endMin)}:e)}));
     } else if(dragData.type==='visitor') {
@@ -1320,7 +1355,9 @@ function SalesCalendar({data, upData, setModal}) {
       }
     } else if(dragData.type==='visitorCreate') {
       // 新しい利用者訪問予定を作成
-      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'利用者訪問',visitorName:'',visitorPhone:''}]}));
+      const newEvent = {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'利用者訪問',visitorName:'',visitorPhone:''};
+      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), newEvent]}));
+      syncDropToGcal(newEvent);
     }
     setDragData(null);
   };
