@@ -1300,10 +1300,10 @@ function SalesCalendar({data, upData, setModal}) {
     try {
       const s = staff.find(x=>x.id===eventData.staffId);
       if(!s) return;
-      const isVisitor = eventData.visitType === '利用者訪問';
+      const isVisitorType = eventData.visitType === '利用者訪問' || eventData.visitType === '事前訪問・契約';
       let summary, eventAddress, desc;
-      if(isVisitor) {
-        summary = `${eventData.visitorName||'利用者'}（利用者訪問）　${s.name}`;
+      if(isVisitorType) {
+        summary = `${eventData.visitType}　${s.name}`;
         eventAddress = eventData.visitorPhone || '';
         desc = `利用者名: ${eventData.visitorName||'-'}\nメモ: ${eventData.memo||'-'}`;
       } else {
@@ -1315,7 +1315,7 @@ function SalesCalendar({data, upData, setModal}) {
       }
       const startISO = `${eventData.date}T${eventData.startTime}:00`;
       const endISO = `${eventData.date}T${eventData.endTime}:00`;
-      const calendarType = isVisitor ? 'visitor' : 'office';
+      const calendarType = isVisitorType ? 'visitor' : 'office';
       const officeCalId = data.settings?.officeCalendarId || '';
       const visitorCalId = data.settings?.visitorCalendarId || '';
       const targetCalendarId = isVisitor ? visitorCalId : officeCalId;
@@ -1355,6 +1355,11 @@ function SalesCalendar({data, upData, setModal}) {
     } else if(dragData.type==='visitorCreate') {
       // 新しい利用者訪問予定を作成
       const newEvent = {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'利用者訪問',visitorName:'',visitorPhone:''};
+      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), newEvent]}));
+      syncDropToGcal(newEvent);
+    } else if(dragData.type==='preVisitCreate') {
+      // 新しい事前訪問・契約予定を作成
+      const newEvent = {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'事前訪問・契約',visitorName:'',visitorPhone:''};
       upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), newEvent]}));
       syncDropToGcal(newEvent);
     }
@@ -1447,7 +1452,7 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
       {staff.map((s,sIdx)=>{
         const sEvents = events.filter(e=>e.staffId===s.id);
         return sEvents.map(ev=>{
-          const isVisitor = !ev.officeId && ev.visitType === '利用者訪問';
+          const isVisitor = !ev.officeId && (ev.visitType === '利用者訪問' || ev.visitType === '事前訪問・契約');
           const office = isVisitor ? null : offices.find(o=>o.id===ev.officeId);
           if(!isVisitor && !office) return null;
           const startMin=timeToMin(ev.startTime), endMin=timeToMin(ev.endTime);
@@ -1455,7 +1460,7 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
           const height = Math.max((endMin-startMin)*(CAL_CELL_H/15), CAL_CELL_H);
           const colW = gridRef.current ? (gridRef.current.scrollWidth-72)/cols : 220;
           const left = 72 + sIdx*colW + 3;
-          const color = isVisitor ? '#eab308' : getCategoryColor(office.category, categoryColors);
+          const color = isVisitor ? (ev.visitType==='事前訪問・契約' ? '#059669' : '#eab308') : getCategoryColor(office.category, categoryColors);
           const bgColor = color + '20'; // Add transparency
           return (
             <div key={ev.id} className={dragData?.eventId===ev.id?'dragging':''}
@@ -1465,7 +1470,7 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
               onMouseEnter={e=>{e.target.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';e.target.style.transform='scale(1.02)';e.target.style.zIndex='10';}}
               onMouseLeave={e=>{e.target.style.boxShadow='none';e.target.style.transform='scale(1)';e.target.style.zIndex='5';}}
               onClick={()=>onClickEvent(ev)}>
-              <div style={{fontWeight:700,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?`${ev.visitorName||'利用者'}（利用者訪問）`:`${office.name}${ev.visitResult&&ev.visitResult!=='未記録'?` [${ev.visitResult}]`:''}`}</div>
+              <div style={{fontWeight:700,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?ev.visitType:`${office.name}${ev.visitResult&&ev.visitResult!=='未記録'?` [${ev.visitResult}]`:''}`}</div>
               {height>=25 && <div style={{color:'#6b7280',fontSize:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?ev.visitorPhone||'':office.category}</div>}
               {height>=40 && <div style={{color:'#9ca3af',fontSize:10,marginTop:1}}>{ev.startTime}〜{ev.endTime} {!isVisitor && ev.contactPerson&&`・${ev.contactPerson}`} {ev.memo&&`・${ev.memo}`}</div>}
             </div>
@@ -1495,13 +1500,23 @@ function CalUnassigned({offices, categoryColors, setDragData, currentDate, calen
 
   return (
     <div className="unassigned-panel">
+      {/* 事前訪問・契約 新規作成カード */}
+      <div style={{marginBottom:8}}>
+        <div className="unassigned-body">
+          <div className="unassigned-card" draggable
+            onDragStart={e=>{setDragData({type:'preVisitCreate',duration:1});e.dataTransfer.effectAllowed='copy';}}
+            style={{borderLeftColor:'#059669'}}>
+            <div className="uc-name" style={{color:'#065f46'}}>📋 事前訪問・契約</div>
+          </div>
+        </div>
+      </div>
       {/* 利用者訪問新規作成カード */}
       <div style={{marginBottom:12}}>
         <div className="unassigned-body">
           <div className="unassigned-card" draggable
             onDragStart={e=>{setDragData({type:'visitorCreate',duration:1});e.dataTransfer.effectAllowed='copy';}}
             style={{borderLeftColor:'#eab308'}}>
-            <div className="uc-name" style={{color:'#92400e'}}>利用者訪問</div>
+            <div className="uc-name" style={{color:'#92400e'}}>👥 利用者訪問</div>
           </div>
         </div>
       </div>
@@ -1534,7 +1549,7 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
   const ev = isEdit ? modal.event : null;
   const VISIT_RESULTS = ['未記録','対面挨拶','パンフレット・名刺のみお渡し','不在'];
   const RESPONSE_RATINGS = [{v:0,label:'未評価',color:'#9ca3af'},{v:1,label:'△',color:'#f59e0b'},{v:2,label:'○',color:'#3b82f6'},{v:3,label:'◎',color:'#059669'}];
-  const isVisitorVisit = isEdit ? !ev.officeId && ev.visitType==='利用者訪問' : modal.type==='add' && modal.isVisitor;
+  const isVisitorVisit = isEdit ? !ev.officeId && (ev.visitType==='利用者訪問' || ev.visitType==='事前訪問・契約') : modal.type==='add' && modal.isVisitor;
   const [f, setF] = useState(isEdit ? {
     officeId:ev.officeId||'',staffId:ev.staffId,date:ev.date||currentDate,startTime:ev.startTime,endTime:ev.endTime,memo:ev.memo||'',
     visitResult:ev.visitResult||'未記録',contactPerson:ev.contactPerson||'',contactPhone:ev.contactPhone||'',contactEmail:ev.contactEmail||'',
@@ -1581,12 +1596,12 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
       const s = staff.find(x=>x.id===eventData.staffId);
       if(!s) return;
 
-      const isVisitor = eventData.visitType === '利用者訪問' || eventData.memo?.includes('利用者訪問') || eventData.category === '利用者訪問';
+      const isVisitor = eventData.visitType === '利用者訪問' || eventData.visitType === '事前訪問・契約' || eventData.memo?.includes('利用者訪問') || eventData.category === '利用者訪問';
 
       let summary, eventAddress, desc;
       if(isVisitor) {
-        // 利用者訪問
-        summary = `${eventData.visitorName||'利用者'}（利用者訪問）　${s.name}`;
+        // 利用者訪問・事前訪問
+        summary = `${eventData.visitType}　${s.name}`;
         eventAddress = eventData.visitorPhone || '';
         desc = `利用者名: ${eventData.visitorName||'-'}\n電話: ${eventData.visitorPhone||'-'}\nメモ: ${eventData.memo||'-'}`;
       } else {
@@ -1616,7 +1631,7 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
   const save = () => {
     if(!f.staffId) return;
     if(!isVisitorVisit && !f.officeId) return;
-    const eventData = {...f, visitType: isVisitorVisit ? '利用者訪問' : '営業'};
+    const eventData = {...f, visitType: isVisitorVisit ? (ev?.visitType==='事前訪問・契約' || modal?.isPreVisit ? '事前訪問・契約' : '利用者訪問') : '営業'};
     if(isEdit) { upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===ev.id?{...e,...eventData}:e)})); }
     else { upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),...eventData}]})); }
     // Googleカレンダー自動連携
@@ -1626,11 +1641,26 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
 
   const del = () => {
     if(!window.confirm('この予定を削除しますか？')) return;
-    // Googleカレンダーから削除を通知
+    // Googleカレンダーから削除を通知（summary+start で一致検索して削除）
     if(GCAL_SCRIPT_URL) {
-      const params = new URLSearchParams({action:'delete', eventId: ev.id});
+      const s = staff.find(x=>x.id===ev.staffId);
+      const isVis = !ev.officeId && (ev.visitType === '利用者訪問' || ev.visitType === '事前訪問・契約');
+      let delSummary = '';
+      if(s) {
+        if(isVis) {
+          delSummary = `${ev.visitType}　${s.name}`;
+        } else {
+          const o = offices.find(x=>x.id===ev.officeId);
+          if(o) delSummary = `${o.name}　${s.name}`;
+        }
+      }
+      const startISO = `${ev.date}T${ev.startTime}:00`;
+      const visCalId = data.settings?.visitorCalendarId || '';
+      const offCalId = data.settings?.officeCalendarId || '';
+      const targetCalendarId = isVis ? visCalId : offCalId;
+      const params = new URLSearchParams({action:'delete', summary:delSummary, start:startISO, targetCalendarId});
       fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
-        .then(() => console.log('📅 Gcal削除リクエスト送信'))
+        .then(() => console.log('📅 Gcal削除リクエスト送信: ' + delSummary))
         .catch(e => console.log('Gcal送信エラー:', e));
     }
     upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).filter(e=>e.id!==ev.id)}));
@@ -1677,8 +1707,8 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
           </>
         ) : (
           <>
-            <div style={{background:'#fef3c7',borderRadius:8,padding:10,marginBottom:12,border:'1px solid #fcd34d'}}>
-              <div style={{fontSize:12,fontWeight:600,color:'#92400e'}}>👥 利用者訪問</div>
+            <div style={{background:ev?.visitType==='事前訪問・契約'||modal?.isPreVisit?'#ecfdf5':'#fef3c7',borderRadius:8,padding:10,marginBottom:12,border:ev?.visitType==='事前訪問・契約'||modal?.isPreVisit?'1px solid #6ee7b7':'1px solid #fcd34d'}}>
+              <div style={{fontSize:12,fontWeight:600,color:ev?.visitType==='事前訪問・契約'||modal?.isPreVisit?'#065f46':'#92400e'}}>{ev?.visitType==='事前訪問・契約'||modal?.isPreVisit?'📋 事前訪問・契約':'👥 利用者訪問'}</div>
             </div>
             <div className="form-group"><label>利用者名 *</label><input value={f.visitorName} onChange={set('visitorName')} placeholder="利用者の名前を入力"/></div>
             <div className="form-group"><label>電話番号</label><input value={f.visitorPhone} onChange={set('visitorPhone')} placeholder="090-XXXX-XXXX"/></div>
@@ -1966,28 +1996,13 @@ function Settings({data, upData}) {
           <button className="btn btn-primary" onClick={addStaff}>追加</button>
         </div>
       </div>
-      <div className="chart-card" style={{marginBottom:16}}>
-        <h3>🔑 名刺OCR設定</h3>
-        <div className="form-group"><label>Claude APIキー</label><input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-..."/></div>
-        <div className="form-group"><label>GAS URL（チーム共有用）</label><input value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/..."/></div>
-        {msg && <p style={{color:'#059669',fontSize:12,marginBottom:8}}>{msg}</p>}
-        <button className="btn btn-primary" onClick={saveSettings}>保存</button>
-      </div>
-      <div className="chart-card" style={{marginBottom:16}}>
-        <h3>📅 Googleカレンダー設定</h3>
-        <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>営業先と利用者訪問を別々のカレンダーに登録します</p>
-        <div className="form-group"><label>営業先カレンダーID</label><input value={officeCalendarId} onChange={e=>setOfficeCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
-        <div className="form-group"><label>利用者訪問カレンダーID</label><input value={visitorCalendarId} onChange={e=>setVisitorCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
-        {msg && <p style={{color:'#059669',fontSize:12,marginBottom:8}}>{msg}</p>}
-        <button className="btn btn-primary" onClick={saveSettings}>保存</button>
-      </div>
-      <AdminSection resetData={resetData}/>
+      <AdminSection resetData={resetData} apiKey={apiKey} setApiKey={setApiKey} syncUrl={syncUrl} setSyncUrl={setSyncUrl} officeCalendarId={officeCalendarId} setOfficeCalendarId={setOfficeCalendarId} visitorCalendarId={visitorCalendarId} setVisitorCalendarId={setVisitorCalendarId} saveSettings={saveSettings} msg={msg}/>
     </div>
   );
 }
 
 // ─── 管理者画面 ───
-function AdminSection({resetData}) {
+function AdminSection({resetData, apiKey, setApiKey, syncUrl, setSyncUrl, officeCalendarId, setOfficeCalendarId, visitorCalendarId, setVisitorCalendarId, saveSettings, msg}) {
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
@@ -2011,6 +2026,21 @@ function AdminSection({resetData}) {
       </div>
       {showAdmin && (
         <div style={{marginTop:16}}>
+          <div style={{marginBottom:20,paddingBottom:16,borderBottom:'1px solid #e5e7eb'}}>
+            <h4 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>📅 Googleカレンダー設定</h4>
+            <p style={{fontSize:12,color:'#6b7280',marginBottom:12}}>営業先と利用者訪問を別々のカレンダーに登録します</p>
+            <div className="form-group"><label>営業先カレンダーID</label><input value={officeCalendarId} onChange={e=>setOfficeCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
+            <div className="form-group"><label>利用者訪問カレンダーID</label><input value={visitorCalendarId} onChange={e=>setVisitorCalendarId(e.target.value)} placeholder="calendar-id@group.calendar.google.com"/></div>
+            {msg && <p style={{color:'#059669',fontSize:12,marginBottom:8}}>{msg}</p>}
+            <button className="btn btn-primary btn-sm" onClick={saveSettings}>保存</button>
+          </div>
+          <div style={{marginBottom:20,paddingBottom:16,borderBottom:'1px solid #e5e7eb'}}>
+            <h4 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>🔑 名刺OCR設定</h4>
+            <div className="form-group"><label>Claude APIキー</label><input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="sk-ant-api03-..."/></div>
+            <div className="form-group"><label>GAS URL（チーム共有用）</label><input value={syncUrl} onChange={e=>setSyncUrl(e.target.value)} placeholder="https://script.google.com/..."/></div>
+            {msg && <p style={{color:'#059669',fontSize:12,marginBottom:8}}>{msg}</p>}
+            <button className="btn btn-primary btn-sm" onClick={saveSettings}>保存</button>
+          </div>
           <div style={{marginBottom:20}}>
             <h4 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>🔑 パスワード変更</h4>
             <div className="form-group"><label>現在のパスワード</label><input type="password" value={currentPw} onChange={e=>setCurrentPw(e.target.value)} placeholder="現在のパスワード"/></div>
