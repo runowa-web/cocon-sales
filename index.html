@@ -1318,7 +1318,7 @@ function SalesCalendar({data, upData, setModal}) {
       const calendarType = isVisitorType ? 'visitor' : 'office';
       const officeCalId = data.settings?.officeCalendarId || '';
       const visitorCalId = data.settings?.visitorCalendarId || '';
-      const targetCalendarId = isVisitor ? visitorCalId : officeCalId;
+      const targetCalendarId = isVisitorType ? visitorCalId : officeCalId;
       const params = new URLSearchParams({summary, start: startISO, end: endISO, location: eventAddress, description: desc, calendarType, targetCalendarId});
       fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
         .then(() => console.log(`📅 Gcal登録 (${calendarType}): ${summary}`))
