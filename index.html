@@ -232,6 +232,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP'
 .staff-row .del-btn{background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:4px 8px;border-radius:4px}
 .staff-row .del-btn:hover{background:#fee2e2}
 
+/* Mobile office cards (default hidden, shown on mobile) */
+.mobile-office-cards{display:none}
 /* Mobile staff tabs */
 .mobile-staff-tabs{display:none;overflow-x:auto;-webkit-overflow-scrolling:touch;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:4px 8px;gap:6px;flex-shrink:0}
 .mobile-staff-tab{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all 0.15s}
@@ -270,6 +272,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP'
   .cal-corner{width:52px;min-width:52px}
   .unassigned-panel{display:none}
   .modal-box{width:95%;padding:16px;max-height:90vh}
+  .desktop-table{display:none}
+  .mobile-office-cards{display:block}
 }
 </style>
 </head>
@@ -955,7 +959,8 @@ function CompanyList({data, setDetailId, search, upData}) {
           );
         })}
       </div>
-      <table className="data-table" style={{tableLayout:'fixed',width:'100%'}}>
+      {/* PC: テーブル表示 */}
+      <table className="data-table desktop-table" style={{tableLayout:'fixed',width:'100%'}}>
         <thead><tr><th style={{width:'22%'}}>事業所名</th><th style={{width:'12%'}}>種別</th><th style={{width:'10%'}}>最終訪問</th><th style={{width:'26%'}}>住所</th><th style={{width:'14%'}}>電話番号</th><th style={{width:'16%'}}>法人</th></tr></thead>
         <tbody>
           {filtered.map(o => {
@@ -974,6 +979,27 @@ function CompanyList({data, setDetailId, search, upData}) {
           })}
         </tbody>
       </table>
+      {/* スマホ: カード表示 */}
+      <div className="mobile-office-cards">
+        {filtered.map(o => {
+          const days = daysSinceLastVisit(o.id, data.calendarEvents);
+          const catColor = getCategoryColor(o.category, categoryColors);
+          return (
+            <div key={o.id} onClick={()=>setDetailId('office-'+o.id)} style={{background:'#fff',border:'1px solid #e5e7eb',borderRadius:10,padding:'12px 14px',marginBottom:8,cursor:'pointer',borderLeft:`4px solid ${catColor}`,transition:'all 0.15s'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                <div style={{fontWeight:700,fontSize:14,color:'#1a1a2e',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginRight:8}}>{o.name}</div>
+                <DaysBadge days={days}/>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}}>
+                <span style={{fontSize:11,background:catColor+'20',color:catColor,padding:'2px 8px',borderRadius:12,border:`1px solid ${catColor}`,whiteSpace:'nowrap'}}>{o.category}</span>
+                {o.org && <span style={{fontSize:11,color:'#6b7280'}}>{o.org}</span>}
+              </div>
+              {o.address && <div style={{fontSize:12,color:'#6b7280',marginBottom:2}}>{o.address}</div>}
+              {o.phone && <div style={{fontSize:12}}><a href={`tel:${o.phone}`} style={{color:'#7c3aed',textDecoration:'none'}} onClick={e=>e.stopPropagation()}>📞 {o.phone}</a></div>}
+            </div>
+          );
+        })}
+      </div>
       {filtered.length===0 && <p style={{textAlign:'center',padding:40,color:'#9ca3af',fontSize:13}}>該当する営業先がありません</p>}
     </div>
   );
