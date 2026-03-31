@@ -232,6 +232,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP'
 .staff-row .del-btn{background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:4px 8px;border-radius:4px}
 .staff-row .del-btn:hover{background:#fee2e2}
 
+/* Mobile staff tabs */
+.mobile-staff-tabs{display:none;overflow-x:auto;-webkit-overflow-scrolling:touch;background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:4px 8px;gap:6px;flex-shrink:0}
+.mobile-staff-tab{padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #e2e8f0;background:#fff;color:#374151;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:all 0.15s}
+.mobile-staff-tab.active{background:#7c3aed;color:#fff;border-color:#7c3aed}
+/* Mobile drawer */
+.mobile-drawer-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:100}
+.mobile-drawer-overlay.open{display:block}
+.mobile-drawer{position:fixed;right:-300px;top:0;bottom:0;width:280px;background:#fff;z-index:101;transition:right 0.3s ease;display:flex;flex-direction:column;box-shadow:-4px 0 20px rgba(0,0,0,0.15)}
+.mobile-drawer.open{right:0}
+.mobile-drawer-header{display:flex;align-items:center;justify-content:space-between;padding:16px;border-bottom:1px solid #e2e8f0}
+.mobile-drawer-header h3{font-size:15px;font-weight:700;color:#1a1a2e}
+.mobile-drawer-close{background:none;border:none;font-size:24px;cursor:pointer;color:#6b7280;padding:4px 8px}
+.mobile-drawer-body{flex:1;overflow-y:auto;padding:8px}
+/* Mobile FAB */
+.mobile-fab{display:none;position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:#7c3aed;color:#fff;border:none;font-size:28px;cursor:pointer;box-shadow:0 4px 16px rgba(124,58,237,0.4);z-index:50;align-items:center;justify-content:center}
 /* Responsive */
 @media(max-width:768px){
   .sidebar{width:60px;min-width:60px}
@@ -243,6 +258,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP'
   .chart-row{grid-template-columns:1fr}
   .kanban-column{min-width:240px}
   .detail-panel{width:100%}
+  .mobile-staff-tabs{display:flex}
+  .mobile-fab{display:flex}
+  .cal-controls{padding:8px 12px;gap:6px;flex-wrap:wrap}
+  .cal-controls .date-label{font-size:13px;min-width:140px}
+  .cal-controls .date-nav button{padding:8px 12px;font-size:14px}
+  .cal-controls .today-btn{padding:8px 12px;font-size:12px}
+  .cal-staff-header{min-width:100%!important}
+  .cal-cell{min-width:100%!important}
+  .cal-time{width:52px;min-width:52px;font-size:10px;padding:0 4px}
+  .cal-corner{width:52px;min-width:52px}
+  .unassigned-panel{display:none}
+  .modal-box{width:95%;padding:16px;max-height:90vh}
 }
 </style>
 </head>
@@ -1286,7 +1313,10 @@ function SalesCalendar({data, upData, setModal}) {
   const [currentDate, setCurrentDate] = useState(today());
   const [dragData, setDragData] = useState(null);
   const [calModal, setCalModal] = useState(null);
+  const [mobileStaffIdx, setMobileStaffIdx] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const dateRef = useRef();
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
 
   const staff = data.staff || [];
   const events = (data.calendarEvents || []).filter(e=>e.date===currentDate);
@@ -1376,6 +1406,8 @@ function SalesCalendar({data, upData, setModal}) {
     </div>
   );
 
+  const mobileStaff = isMobile && staff.length > 0 ? [staff[mobileStaffIdx] || staff[0]] : staff;
+
   return (
     <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
       <div className="cal-controls">
@@ -1389,18 +1421,54 @@ function SalesCalendar({data, upData, setModal}) {
         </div>
         <button className="today-btn" onClick={()=>setCurrentDate(today())}>今日</button>
         <div style={{flex:1}}></div>
-        <button className="btn btn-primary btn-sm" onClick={()=>setCalModal({type:'add'})}>＋ 予定追加</button>
+        <button className="btn btn-primary btn-sm" onClick={()=>setCalModal({type:'add'})} style={{display:isMobile?'none':'inline-flex'}}>＋ 予定追加</button>
+        {isMobile && <button onClick={()=>setDrawerOpen(true)} style={{background:'none',border:'1px solid #e2e8f0',borderRadius:6,padding:'6px 10px',cursor:'pointer',fontSize:14}}>📋</button>}
+      </div>
+      {/* Mobile staff tabs */}
+      <div className="mobile-staff-tabs">
+        {staff.map((s,i)=>(
+          <button key={s.id} className={`mobile-staff-tab ${i===mobileStaffIdx?'active':''}`} onClick={()=>setMobileStaffIdx(i)}>{s.name}</button>
+        ))}
       </div>
       <div style={{display:'flex',flex:1,overflow:'hidden'}}>
-        <CalendarGrid staff={staff} events={events} offices={data.offices} categoryColors={data.settings?.categoryColors||{}} onDrop={handleDrop} dragData={dragData} setDragData={setDragData} onClickEvent={ev=>setCalModal({type:'edit',event:ev})}/>
+        <CalendarGrid staff={mobileStaff} events={events} offices={data.offices} categoryColors={data.settings?.categoryColors||{}} onDrop={handleDrop} dragData={dragData} setDragData={setDragData} onClickEvent={ev=>setCalModal({type:'edit',event:ev})} isMobile={isMobile} onCellTap={isMobile?(staffId,hour,quarter)=>{
+          const startMin=hour*60+quarter*15;const toTime=m=>`${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+          setCalModal({type:'add',prefill:{staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(startMin+30)}});
+        }:null}/>
         <CalUnassigned offices={data.offices} categoryColors={data.settings?.categoryColors||{}} setDragData={setDragData} currentDate={currentDate} calendarEvents={data.calendarEvents||[]}/>
       </div>
+      {/* Mobile drawer for adding events */}
+      {isMobile && <div className={`mobile-drawer-overlay ${drawerOpen?'open':''}`} onClick={()=>setDrawerOpen(false)}/>}
+      {isMobile && <div className={`mobile-drawer ${drawerOpen?'open':''}`}>
+        <div className="mobile-drawer-header"><h3>予定を追加</h3><button className="mobile-drawer-close" onClick={()=>setDrawerOpen(false)}>×</button></div>
+        <div className="mobile-drawer-body">
+          <div style={{marginBottom:12}}>
+            <div className="unassigned-card" onClick={()=>{setDrawerOpen(false);setCalModal({type:'add',isPreVisit:true,prefill:{staffId:mobileStaff[0]?.id,date:currentDate,startTime:'09:00',endTime:'10:00'}});}} style={{borderLeftColor:'#059669',cursor:'pointer'}}>
+              <div className="uc-name" style={{color:'#065f46'}}>📋 事前訪問・契約</div>
+            </div>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div className="unassigned-card" onClick={()=>{setDrawerOpen(false);setCalModal({type:'add',isVisitor:true,prefill:{staffId:mobileStaff[0]?.id,date:currentDate,startTime:'09:00',endTime:'10:00'}});}} style={{borderLeftColor:'#eab308',cursor:'pointer'}}>
+              <div className="uc-name" style={{color:'#92400e'}}>👥 利用者訪問</div>
+            </div>
+          </div>
+          <div className="unassigned-header" style={{padding:'10px 0'}}>🏢 営業先</div>
+          {data.offices.map(o=>(
+            <div key={o.id} className="unassigned-card" onClick={()=>{setDrawerOpen(false);setCalModal({type:'add',prefill:{officeId:o.id,staffId:mobileStaff[0]?.id,date:currentDate,startTime:'09:00',endTime:'09:30'}});}} style={{borderLeftColor:getCategoryColor(o.category, data.settings?.categoryColors||{}),cursor:'pointer'}}>
+              <div className="uc-name">{o.name}</div>
+              <div className="uc-cat">{o.category}</div>
+            </div>
+          ))}
+        </div>
+      </div>}
+      {/* Mobile FAB */}
+      {isMobile && <button className="mobile-fab" onClick={()=>setDrawerOpen(true)}>＋</button>}
       {calModal && <CalEventModal modal={calModal} setModal={setCalModal} staff={staff} offices={data.offices} calendarEvents={data.calendarEvents||[]} upData={upData} currentDate={currentDate} data={data}/>}
     </div>
   );
 }
 
-function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData, setDragData, onClickEvent}) {
+function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData, setDragData, onClickEvent, isMobile, onCellTap}) {
   const gridRef = useRef();
   const cols = staff.length;
   const timeToMin = t => { const [h,m]=t.split(':').map(Number); return h*60+m; };
@@ -1410,7 +1478,7 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
 
   return (
     <div className="cal-wrapper" ref={gridRef}>
-      <div className="cal-grid" style={{display:'grid',gridTemplateColumns:`72px repeat(${cols}, minmax(220px, 1fr))`,width:'100%'}}>
+      <div className="cal-grid" style={{display:'grid',gridTemplateColumns:isMobile?`52px 1fr`:`72px repeat(${cols}, minmax(220px, 1fr))`,width:'100%'}}>
         <div className="cal-corner" style={{height:HEADER_H}}></div>
         {staff.map(s=>{
           const sEvents = events.filter(e=>e.staffId===s.id).sort((a,b)=>a.startTime.localeCompare(b.startTime));
@@ -1444,7 +1512,7 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
               <React.Fragment key={q}>
                 <div className="cal-time" style={{height:CAL_CELL_H}}>{q===0?`${String(h).padStart(2,'0')}:00`:''}</div>
                 {staff.map(s=>(
-                  <CellSlot key={`${s.id}-${h}-${q}`} staffId={s.id} hour={h} quarter={q} onDrop={onDrop} dragData={dragData} isHourLine={q===0} isHalfLine={q===2}/>
+                  <CellSlot key={`${s.id}-${h}-${q}`} staffId={s.id} hour={h} quarter={q} onDrop={onDrop} dragData={dragData} isHourLine={q===0} isHalfLine={q===2} onCellTap={onCellTap}/>
                 ))}
               </React.Fragment>
             ))}
@@ -1483,7 +1551,7 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
   );
 }
 
-function CellSlot({staffId, hour, quarter, onDrop, dragData, isHourLine, isHalfLine}) {
+function CellSlot({staffId, hour, quarter, onDrop, dragData, isHourLine, isHalfLine, onCellTap}) {
   const [over, setOver] = useState(false);
   return (
     <div className={`cal-cell ${isHourLine?'hour-line':''} ${isHalfLine?'half-line':''} ${over?'drag-over':''}`}
@@ -1491,6 +1559,7 @@ function CellSlot({staffId, hour, quarter, onDrop, dragData, isHourLine, isHalfL
       onDragOver={e=>{e.preventDefault();setOver(true);}}
       onDragLeave={()=>setOver(false)}
       onDrop={e=>{e.preventDefault();setOver(false);onDrop(staffId,hour,quarter);}}
+      onClick={onCellTap?()=>onCellTap(staffId,hour,quarter):undefined}
     />
   );
 }
@@ -1551,14 +1620,15 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
   const ev = isEdit ? modal.event : null;
   const VISIT_RESULTS = ['未記録','対面挨拶','パンフレット・名刺のみお渡し','不在'];
   const RESPONSE_RATINGS = [{v:0,label:'未評価',color:'#9ca3af'},{v:1,label:'△',color:'#f59e0b'},{v:2,label:'○',color:'#3b82f6'},{v:3,label:'◎',color:'#059669'}];
-  const isVisitorVisit = isEdit ? !ev.officeId && (ev.visitType==='利用者訪問' || ev.visitType==='事前訪問・契約') : modal.type==='add' && modal.isVisitor;
+  const isVisitorVisit = isEdit ? !ev.officeId && (ev.visitType==='利用者訪問' || ev.visitType==='事前訪問・契約') : modal.type==='add' && (modal.isVisitor || modal.isPreVisit);
+  const pf = modal.prefill || {};
   const [f, setF] = useState(isEdit ? {
     officeId:ev.officeId||'',staffId:ev.staffId,date:ev.date||currentDate,startTime:ev.startTime,endTime:ev.endTime,memo:ev.memo||'',
     visitResult:ev.visitResult||'未記録',contactPerson:ev.contactPerson||'',contactPhone:ev.contactPhone||'',contactEmail:ev.contactEmail||'',
     hasCard:ev.hasCard||false,cardPhoto:ev.cardPhoto||'',responseRating:ev.responseRating||0,
     contactPerson2:ev.contactPerson2||'',contactPhone2:ev.contactPhone2||'',contactEmail2:ev.contactEmail2||'',
     customAddress:ev.customAddress||'',visitorName:ev.visitorName||'',visitorPhone:ev.visitorPhone||''
-  } : {officeId:'',staffId:staff[0]?.id||'',date:currentDate,startTime:'09:00',endTime:'09:30',memo:'',
+  } : {officeId:pf.officeId||'',staffId:pf.staffId||staff[0]?.id||'',date:pf.date||currentDate,startTime:pf.startTime||'09:00',endTime:pf.endTime||'09:30',memo:'',
     visitResult:'未記録',contactPerson:'',contactPhone:'',contactEmail:'',
     hasCard:false,cardPhoto:'',responseRating:0,
     contactPerson2:'',contactPhone2:'',contactEmail2:'',
