@@ -1395,7 +1395,26 @@ function SalesCalendar({data, upData, setModal}) {
       upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), newEvent]}));
       syncDropToGcal(newEvent);
     } else if(dragData.type==='move') {
+      // 旧イベントをGoogleカレンダーから削除
+      const oldEv = (data.calendarEvents||[]).find(e=>e.id===dragData.eventId);
+      if(oldEv && GCAL_SCRIPT_URL) {
+        const s = staff.find(x=>x.id===oldEv.staffId);
+        if(s) {
+          const isVis = !oldEv.officeId && (oldEv.visitType === '利用者訪問' || oldEv.visitType === '事前訪問・契約');
+          let delSummary = isVis ? `${oldEv.visitType}　${s.name}` : '';
+          if(!isVis) { const o = data.offices.find(x=>x.id===oldEv.officeId); if(o) delSummary = `${o.name}　${s.name}`; }
+          if(delSummary) {
+            const oldStart = `${oldEv.date}T${oldEv.startTime}:00`;
+            const visCalId = data.settings?.visitorCalendarId||''; const offCalId = data.settings?.officeCalendarId||''; const preCalId = data.settings?.preVisitCalendarId||'';
+            const tCalId = oldEv.visitType==='事前訪問・契約' ? preCalId : (isVis ? visCalId : offCalId);
+            fetch(`${GCAL_SCRIPT_URL}?${new URLSearchParams({action:'delete',summary:delSummary,start:oldStart,targetCalendarId:tCalId}).toString()}`, {mode:'no-cors'}).catch(()=>{});
+          }
+        }
+      }
+      const updatedEv = oldEv ? {...oldEv,staffId,startTime:toTime(startMin),endTime:toTime(endMin)} : null;
       upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===dragData.eventId?{...e,staffId,startTime:toTime(startMin),endTime:toTime(endMin)}:e)}));
+      // 新イベントをGoogleカレンダーに登録
+      if(updatedEv) syncDropToGcal(updatedEv);
     } else if(dragData.type==='visitor') {
       // 複数の利用者訪問イベントをカレンダーに割り当て
       if(dragData.eventIds) {
@@ -1728,13 +1747,41 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
     } catch(e) { console.log('Gcal sync error', e); }
   };
 
+  const deleteFromGcal = (eventToDelete) => {
+    if(!GCAL_SCRIPT_URL || !eventToDelete) return;
+    const s = staff.find(x=>x.id===eventToDelete.staffId);
+    if(!s) return;
+    const isVis = !eventToDelete.officeId && (eventToDelete.visitType === '利用者訪問' || eventToDelete.visitType === '事前訪問・契約');
+    let delSummary = '';
+    if(isVis) {
+      delSummary = `${eventToDelete.visitType}　${s.name}`;
+    } else {
+      const o = offices.find(x=>x.id===eventToDelete.officeId);
+      if(o) delSummary = `${o.name}　${s.name}`;
+    }
+    if(!delSummary) return;
+    const startISO = `${eventToDelete.date}T${eventToDelete.startTime}:00`;
+    const visCalId = data.settings?.visitorCalendarId || '';
+    const offCalId = data.settings?.officeCalendarId || '';
+    const preCalId = data.settings?.preVisitCalendarId || '';
+    const targetCalendarId = eventToDelete.visitType === '事前訪問・契約' ? preCalId : (isVis ? visCalId : offCalId);
+    const params = new URLSearchParams({action:'delete', summary:delSummary, start:startISO, targetCalendarId});
+    fetch(`${GCAL_SCRIPT_URL}?${params.toString()}`, {mode: 'no-cors'})
+      .then(() => console.log('📅 Gcal旧イベント削除: ' + delSummary))
+      .catch(e => console.log('Gcal削除エラー:', e));
+  };
+
   const save = () => {
     if(!f.staffId) return;
     if(!isVisitorVisit && !f.officeId) return;
     const eventData = {...f, visitType: isVisitorVisit ? (ev?.visitType==='事前訪問・契約' || modal?.isPreVisit ? '事前訪問・契約' : '利用者訪問') : '営業'};
-    if(isEdit) { upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===ev.id?{...e,...eventData}:e)})); }
+    if(isEdit) {
+      // 編集時：旧イベントをGoogleカレンダーから削除してから新イベントを登録
+      deleteFromGcal(ev);
+      upData(d=>({...d, calendarEvents:(d.calendarEvents||[]).map(e=>e.id===ev.id?{...e,...eventData}:e)}));
+    }
     else { upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),...eventData}]})); }
-    // Googleカレンダー自動連携
+    // Googleカレンダー自動連携（新イベント登録）
     syncToGoogleCal(eventData);
     setModal(null);
   };
