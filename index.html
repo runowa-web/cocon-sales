@@ -2434,6 +2434,48 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
     upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, referrals:(o.referrals||[]).filter(r=>r.id!==rid)} : o)}));
   };
 
+  // ── Visit editing state & handlers ──
+  const [editingVisitId, setEditingVisitId] = useState(null);
+  const [editVisit, setEditVisit] = useState({visitResult:'', contactPerson:'', memo:''});
+  const [addingVisit, setAddingVisit] = useState(false);
+  const [newVisit, setNewVisit] = useState({date:new Date().toISOString().split('T')[0], startTime:'09:00', endTime:'10:00', staffId:'', visitResult:'対面挨拶', contactPerson:'', memo:''});
+  const VISIT_RESULTS = ['対面挨拶', 'パンフレット・名刺のみお渡し', '不在', '未記録'];
+
+  const startEditVisit = (v) => {
+    setEditingVisitId(v.id);
+    setEditVisit({visitResult:v.visitResult||'未記録', contactPerson:v.contactPerson||'', memo:v.memo||''});
+  };
+  const saveVisitEdit = (visitId) => {
+    upData(d => ({...d, calendarEvents: (d.calendarEvents||[]).map(e => e.id===visitId ? {...e, ...editVisit} : e)}));
+    setEditingVisitId(null);
+  };
+  const addVisitRecord = () => {
+    if(!newVisit.date) return;
+    const ev = {id:uid(), officeId, officeName:office.name, ...newVisit};
+    upData(d => ({...d, calendarEvents: [...(d.calendarEvents||[]), ev]}));
+    setNewVisit({date:new Date().toISOString().split('T')[0], startTime:'09:00', endTime:'10:00', staffId:'', visitResult:'対面挨拶', contactPerson:'', memo:''});
+    setAddingVisit(false);
+  };
+  const deleteVisit = (visitId) => {
+    if(!window.confirm('この訪問記録を削除しますか？')) return;
+    upData(d => ({...d, calendarEvents: (d.calendarEvents||[]).filter(e => e.id!==visitId)}));
+  };
+  const setNV = k => e => setNewVisit(p=>({...p,[k]:e.target.value}));
+  const setEV = k => e => setEditVisit(p=>({...p,[k]:e.target.value}));
+
+  // ── Referral editing state & handlers ──
+  const [editingRefId, setEditingRefId] = useState(null);
+  const [editRefData, setEditRefData] = useState({name:'', date:'', insurance:'介護保険', status:'問合せ中', note:''});
+  const startEditRef = (r) => {
+    setEditingRefId(r.id);
+    setEditRefData({name:r.name||'', date:r.date||'', insurance:r.insurance||'介護保険', status:r.status||'問合せ中', note:r.note||''});
+  };
+  const saveRefEdit = () => {
+    upData(d => ({...d, offices: d.offices.map(o => o.id===officeId ? {...o, referrals:(o.referrals||[]).map(r=>r.id===editingRefId?{...r,...editRefData}:r)} : o)}));
+    setEditingRefId(null);
+  };
+  const setER = k => e => setEditRefData(p=>({...p,[k]:e.target.value}));
+
   return (
     <div className="detail-panel">
       <div className="detail-header">
@@ -2478,7 +2520,10 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
           const recordedCount = visits.filter(v=>v.visitResult&&v.visitResult!=='未記録').length;
           return (
             <div style={{marginTop:24,borderTop:'1px solid #e5e7eb',paddingTop:16}}>
-              <h3 style={{fontSize:14,fontWeight:700,marginBottom:12}}>📅 訪問履歴</h3>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                <h3 style={{fontSize:14,fontWeight:700}}>📅 訪問履歴</h3>
+                <button className="btn btn-primary btn-sm" onClick={()=>setAddingVisit(true)}>＋ 訪問記録</button>
+              </div>
               <div style={{display:'flex',gap:12,marginBottom:16,flexWrap:'wrap'}}>
                 <div style={{background:'#f0f9ff',borderRadius:8,padding:'8px 14px',textAlign:'center'}}>
                   <div style={{fontSize:20,fontWeight:800,color:'#3b82f6'}}>{totalVisits}</div>
@@ -2493,14 +2538,68 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
                   <div style={{fontSize:10,color:'#6b7280'}}>不在</div>
                 </div>
               </div>
+
+              {addingVisit && (
+                <div style={{background:'#f0f9ff',borderRadius:10,padding:14,marginBottom:12}}>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
+                    <div className="form-group"><label>日付 *</label><input type="date" value={newVisit.date} onChange={setNV('date')}/></div>
+                    <div className="form-group"><label>開始時間</label><input type="time" value={newVisit.startTime} onChange={setNV('startTime')}/></div>
+                    <div className="form-group"><label>終了時間</label><input type="time" value={newVisit.endTime} onChange={setNV('endTime')}/></div>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                    <div className="form-group"><label>担当者</label>
+                      <select value={newVisit.staffId} onChange={setNV('staffId')}>
+                        <option value="">選択してください</option>
+                        {(data.staff||[]).map(st=><option key={st.id} value={st.id}>{st.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group"><label>訪問結果</label>
+                      <select value={newVisit.visitResult} onChange={setNV('visitResult')}>
+                        {VISIT_RESULTS.map(vr=><option key={vr}>{vr}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group"><label>面談相手</label><input value={newVisit.contactPerson} onChange={setNV('contactPerson')} placeholder="担当者名"/></div>
+                  <div className="form-group"><label>メモ</label><input value={newVisit.memo} onChange={setNV('memo')} placeholder="訪問メモ"/></div>
+                  <div style={{display:'flex',gap:8,marginTop:8}}>
+                    <button className="btn btn-ghost btn-sm" onClick={()=>setAddingVisit(false)}>キャンセル</button>
+                    <button className="btn btn-primary btn-sm" onClick={addVisitRecord}>追加</button>
+                  </div>
+                </div>
+              )}
+
               {visits.length>0 ? visits.slice(0,10).map(v => {
                 const s = (data.staff||[]).find(x=>x.id===v.staffId);
                 const resultColor = v.visitResult==='対面挨拶'?'#059669':v.visitResult==='不在'?'#ef4444':'#6b7280';
+                if(editingVisitId===v.id) {
+                  return (
+                    <div key={v.id} style={{padding:10,marginBottom:8,background:'#f0f9ff',borderRadius:10,fontSize:12}}>
+                      <div style={{fontSize:11,fontWeight:600,color:'#374151',marginBottom:8}}>{v.date} {v.startTime}〜{v.endTime} ({s?.name||'不明'})</div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                        <div className="form-group"><label>訪問結果</label>
+                          <select value={editVisit.visitResult} onChange={setEV('visitResult')}>
+                            {VISIT_RESULTS.map(vr=><option key={vr}>{vr}</option>)}
+                          </select>
+                        </div>
+                        <div className="form-group"><label>面談相手</label><input value={editVisit.contactPerson} onChange={setEV('contactPerson')}/></div>
+                      </div>
+                      <div className="form-group"><label>メモ</label><input value={editVisit.memo} onChange={setEV('memo')}/></div>
+                      <div style={{display:'flex',gap:8,marginTop:8}}>
+                        <button className="btn btn-ghost btn-sm" onClick={()=>setEditingVisitId(null)}>キャンセル</button>
+                        <button className="btn btn-primary btn-sm" onClick={()=>saveVisitEdit(v.id)}>保存</button>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={v.id} style={{padding:'8px 0',borderBottom:'1px solid #f3f4f6',fontSize:12}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                       <span style={{fontWeight:600,color:'#374151'}}>{v.date} {v.startTime}〜{v.endTime}</span>
-                      {v.visitResult&&v.visitResult!=='未記録' && <span style={{fontSize:11,fontWeight:600,color:resultColor,background:v.visitResult==='対面挨拶'?'#dcfce7':v.visitResult==='不在'?'#fee2e2':'#f3f4f6',padding:'2px 8px',borderRadius:10}}>{v.visitResult}</span>}
+                      <div style={{display:'flex',alignItems:'center',gap:4}}>
+                        {v.visitResult&&v.visitResult!=='未記録' && <span style={{fontSize:11,fontWeight:600,color:resultColor,background:v.visitResult==='対面挨拶'?'#dcfce7':v.visitResult==='不在'?'#fee2e2':'#f3f4f6',padding:'2px 8px',borderRadius:10}}>{v.visitResult}</span>}
+                        <button onClick={()=>startEditVisit(v)} style={{background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:13}} title="編集">✏️</button>
+                        <button onClick={()=>deleteVisit(v.id)} style={{background:'none',border:'none',color:'#d1d5db',cursor:'pointer',fontSize:14}} title="削除">✕</button>
+                      </div>
                     </div>
                     <div style={{color:'#6b7280',marginTop:2}}>
                       {s?.name||'不明'}{v.contactPerson&&` → ${v.contactPerson}`}{v.memo&&` ・${v.memo}`}
@@ -2568,6 +2667,27 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
 
               {refs.map(r => {
                 const sc = stColor(r.status);
+                if(editingRefId===r.id) {
+                  return (
+                    <div key={r.id} style={{padding:10,marginBottom:8,background:'#faf5ff',borderRadius:10,fontSize:12}}>
+                      <div className="form-group"><label>利用者名 *</label><input value={editRefData.name} onChange={setER('name')}/></div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                        <div className="form-group"><label>紹介日</label><input type="date" value={editRefData.date} onChange={setER('date')}/></div>
+                        <div className="form-group"><label>保険種別</label>
+                          <select value={editRefData.insurance} onChange={setER('insurance')}>{INSURANCES.map(i=><option key={i}>{i}</option>)}</select>
+                        </div>
+                      </div>
+                      <div className="form-group"><label>状態</label>
+                        <select value={editRefData.status} onChange={setER('status')}>{REFERRAL_STATUSES.map(s=><option key={s}>{s}</option>)}</select>
+                      </div>
+                      <div className="form-group"><label>備考</label><input value={editRefData.note} onChange={setER('note')} placeholder="要介護度、希望頻度など"/></div>
+                      <div style={{display:'flex',gap:8,marginTop:8}}>
+                        <button className="btn btn-ghost btn-sm" onClick={()=>setEditingRefId(null)}>キャンセル</button>
+                        <button className="btn btn-primary btn-sm" onClick={saveRefEdit}>保存</button>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <div key={r.id} style={{padding:'10px 0',borderBottom:'1px solid #f3f4f6',fontSize:12}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -2580,6 +2700,7 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
                           style={{fontSize:10,fontWeight:600,padding:'2px 6px',borderRadius:10,border:'none',cursor:'pointer',background:sc.bg,color:sc.c}}>
                           {REFERRAL_STATUSES.map(s=><option key={s}>{s}</option>)}
                         </select>
+                        <button onClick={()=>startEditRef(r)} style={{background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:13}} title="編集">✏️</button>
                         <button onClick={()=>deleteReferral(r.id)} style={{background:'none',border:'none',color:'#d1d5db',cursor:'pointer',fontSize:14}} title="削除">✕</button>
                       </div>
                     </div>
