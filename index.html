@@ -196,6 +196,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP'
 .cal-controls .today-btn:hover{background:#6d28d9}
 .cal-wrapper{flex:1;overflow:auto;position:relative}
 .cal-grid{display:grid;min-width:100%;position:relative}
+.cal-staff-header .staff-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .cal-corner{background:#f8fafc;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;position:sticky;left:0;top:0;z-index:30;width:72px;min-width:72px}
 .cal-staff-header{background:#f8fafc;border-right:1px solid #e5e7eb;border-bottom:2px solid #e5e7eb;padding:10px 8px;text-align:center;position:sticky;top:0;z-index:20;min-width:220px;overflow:hidden}
 .cal-staff-header .staff-name{font-size:13px;font-weight:700;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 4px}
@@ -1589,11 +1590,35 @@ function SalesCalendar({data, upData, setModal}) {
 
 function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData, setDragData, onClickEvent}) {
   const gridRef = useRef();
+  const headerRefs = useRef({});
   const cols = staff.length;
   const timeToMin = t => { const [h,m]=t.split(':').map(Number); return h*60+m; };
   const HEADER_H = 36;
+  const [colPositions, setColPositions] = useState({});
 
   useEffect(()=>{ if(gridRef.current) gridRef.current.scrollTop = 8*4*CAL_CELL_H; },[]);
+
+  // Measure actual column positions from DOM
+  useEffect(()=>{
+    const measure = () => {
+      if(!gridRef.current) return;
+      const wrapperRect = gridRef.current.getBoundingClientRect();
+      const pos = {};
+      staff.forEach(s => {
+        const el = headerRefs.current[s.id];
+        if(el) {
+          const r = el.getBoundingClientRect();
+          pos[s.id] = { left: r.left - wrapperRect.left + gridRef.current.scrollLeft, width: r.width };
+        }
+      });
+      setColPositions(pos);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if(gridRef.current) ro.observe(gridRef.current);
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, [staff]);
 
   return (
     <div className="cal-wrapper" ref={gridRef}>
@@ -1614,7 +1639,7 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
             window.open(url,'_blank');
           };
           return (
-          <div key={s.id} className="cal-staff-header" style={{height:HEADER_H,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+          <div key={s.id} ref={el=>{headerRefs.current[s.id]=el;}} className="cal-staff-header" style={{height:HEADER_H,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
             <div className="staff-name">{s.name}</div>
             <button onClick={openMap} title="Googleマップでルート表示" style={{background:'none',border:'none',cursor:'pointer',fontSize:14,padding:0,lineHeight:1,opacity:sEvents.length>0?1:0.3}}>🗺️</button>
           </div>
@@ -1647,8 +1672,9 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
           const startMin=timeToMin(ev.startTime), endMin=timeToMin(ev.endTime);
           const top = HEADER_H + startMin*(CAL_CELL_H/15);
           const height = Math.max((endMin-startMin)*(CAL_CELL_H/15), CAL_CELL_H);
-          const colW = gridRef.current ? (gridRef.current.scrollWidth-72)/cols : 220;
-          const left = 72 + sIdx*colW + 3;
+          const cp = colPositions[s.id];
+          const colW = cp ? cp.width : (gridRef.current ? (gridRef.current.scrollWidth-72)/cols : 220);
+          const left = cp ? cp.left + 3 : (72 + sIdx*colW + 3);
           const color = isVisitor ? '#eab308' : getCategoryColor(office.category, categoryColors);
           const bgColor = color + '20'; // Add transparency
           return (
