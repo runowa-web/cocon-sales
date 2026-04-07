@@ -723,6 +723,29 @@ function App() {
             return ev;
           });
         }
+        // シードデータのマージ（リモートデータにも不足分を追加）
+        const seeds = (window.__SEED_OFFICES__||[]).map(o => ({...o, id: o.id || uid()}));
+        if(merged.offices && seeds.length > 0) {
+          const existingIds = new Set(merged.offices.map(o => o.id));
+          const existingNames = new Set(merged.offices.map(o => o.name));
+          const newSeeds = seeds.filter(s => !existingIds.has(s.id) && !existingNames.has(s.name));
+          if(newSeeds.length > 0) {
+            merged.offices = [...merged.offices, ...newSeeds];
+            console.log(`🌱 リモート同期後に${newSeeds.length}件の新規シードデータを追加`);
+          }
+          // 既存エントリの電話番号・住所を補完（seedに情報があり既存にない場合）
+          const seedMap = new Map(seeds.map(s => [s.id, s]));
+          merged.offices = merged.offices.map(o => {
+            const seed = seedMap.get(o.id);
+            if(seed) {
+              const updated = {...o};
+              if(!o.phone && seed.phone) updated.phone = seed.phone;
+              if(!o.address && seed.address) updated.address = seed.address;
+              return updated;
+            }
+            return o;
+          });
+        }
         return merged;
       });
     });
