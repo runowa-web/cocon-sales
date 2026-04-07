@@ -379,10 +379,12 @@ const staleStatus = d => { const n=daysSince(d); if(n===null) return 'stale'; if
 // Default phases for Mazrica-style kanban
 const DEFAULT_PHASES = ['アプローチ','ヒアリング','提案','見積','クロージング'];
 const RESULTS = ['受注','失注','保留'];
-const STAFF_COLORS = ['#7c3aed','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899','#06b6d4','#8b5cf6','#f97316','#14b8a6'];
+const STAFF_COLORS = ['#3b82f6','#10b981','#ef4444','#f59e0b','#ec4899','#0891b2','#be185d','#65a30d','#d97706','#7c3aed','#06b6d4','#8b5cf6','#f97316','#14b8a6','#1e40af','#dc2626'];
 const DEFAULT_CATEGORY_COLORS = {
-  '地域包括': '#3b82f6', '居宅': '#10b981', '病院': '#ef4444',
-  'クリニック': '#f59e0b', '訪問': '#ec4899', 'その他': '#7c3aed'
+  '病院・診療所': '#ef4444', '地域包括支援センター': '#3b82f6', '居宅介護支援': '#10b981',
+  '介護老人保健施設': '#0891b2', '特別養護老人ホーム': '#be185d', 'ドラッグストア': '#65a30d',
+  '接骨院・整骨院': '#d97706', '放課後デイ・児童発達支援': '#7c3aed',
+  'クリニック': '#f59e0b', '訪問': '#ec4899', 'その他': '#6b7280'
 };
 const CAL_HOURS = Array.from({length:25},(_,i)=>i);
 const CAL_CELL_H = 15;
@@ -392,23 +394,28 @@ CAL_TIMES.push('24:00');
 const fmtDate = d => {const dd=new Date(d);const wd=['日','月','火','水','木','金','土'][dd.getDay()];return `${dd.getFullYear()}年${dd.getMonth()+1}月${dd.getDate()}日（${wd}）`;};
 // Get category color: try custom color first, then category name patterns, then default
 const getCategoryColor = (catName, categoryColors) => {
-  if(!catName) return '#7c3aed';
+  if(!catName) return '#6b7280';
   if(categoryColors && categoryColors[catName]) return categoryColors[catName];
   // Fallback to pattern matching
-  if(catName.includes('地域包括')) return '#3b82f6';
-  if(catName.includes('居宅')) return '#10b981';
   if(catName.includes('病院') || catName.includes('診療所')) return '#ef4444';
   if(catName.includes('クリニック')) return '#f59e0b';
-  if(catName.includes('訪問')) return '#ec4899';
+  if(catName.includes('地域包括')) return '#3b82f6';
+  if(catName.includes('居宅')) return '#10b981';
   if(catName.includes('老人保健') || catName.includes('老健')) return '#0891b2';
   if(catName.includes('特別養護') || catName.includes('特養')) return '#be185d';
-  if(catName.includes('ドラッグストア')) return '#65a30d';
+  if(catName.includes('ドラッグストア') || catName.includes('薬局')) return '#65a30d';
   if(catName.includes('接骨院') || catName.includes('整骨院')) return '#d97706';
   if(catName.includes('放課後') || catName.includes('児童')) return '#7c3aed';
-  return '#7c3aed';
+  if(catName.includes('訪問')) return '#ec4899';
+  if(catName.includes('デイサービス') || catName.includes('通所')) return '#14b8a6';
+  if(catName.includes('グループホーム')) return '#8b5cf6';
+  if(catName.includes('有料老人ホーム')) return '#f97316';
+  if(catName.includes('歯科')) return '#1e40af';
+  if(catName.includes('薬局')) return '#059669';
+  return '#6b7280';
 };
 
-const catClass = c => { if(!c) return 'cat-other'; if(c.includes('地域包括')) return 'cat-chiiki'; if(c.includes('居宅')) return 'cat-kyotaku'; if(c.includes('病院')) return 'cat-byouin'; if(c.includes('クリニック')) return 'cat-clinic'; if(c.includes('訪問')) return 'cat-houmon'; return 'cat-other'; };
+const catClass = c => { if(!c) return 'cat-other'; if(c.includes('病院') || c.includes('診療所')) return 'cat-byouin'; if(c.includes('クリニック')) return 'cat-clinic'; if(c.includes('地域包括')) return 'cat-chiiki'; if(c.includes('居宅')) return 'cat-kyotaku'; if(c.includes('老人保健') || c.includes('老健')) return 'cat-rouken'; if(c.includes('特別養護') || c.includes('特養')) return 'cat-tokuyou'; if(c.includes('ドラッグストア') || c.includes('薬局')) return 'cat-drug'; if(c.includes('接骨院') || c.includes('整骨院')) return 'cat-sekkotsu'; if(c.includes('放課後') || c.includes('児童')) return 'cat-houkago'; if(c.includes('訪問')) return 'cat-houmon'; return 'cat-other'; };
 
 // ─── LOGIN SCREEN ───
 const PW_LS_KEY = 'kokon_app_pw';
@@ -2352,8 +2359,10 @@ function Settings({data, upData}) {
                 <div style={{display:'flex',flexWrap:'wrap',gap:8}}>
                   {STAFF_COLORS.map(c=>{
                     const colorName = {
-                      '#3b82f6':'Blue','#1e40af':'Navy','#06b6d4':'Cyan','#059669':'Green','#7c3aed':'Purple',
-                      '#d946ef':'Magenta','#f43f5e':'Rose','#f97316':'Orange','#eab308':'Yellow','#a16207':'Amber'
+                      '#3b82f6':'Blue','#10b981':'Green','#ef4444':'Red','#f59e0b':'Yellow',
+                      '#ec4899':'Pink','#0891b2':'Cyan','#be185d':'Magenta','#65a30d':'Lime',
+                      '#d97706':'Amber','#7c3aed':'Purple','#06b6d4':'SkyBlue','#8b5cf6':'Violet',
+                      '#f97316':'Orange','#14b8a6':'Teal','#1e40af':'Navy','#dc2626':'DarkRed'
                     }[c]||c;
                     return (
                       <div key={c}
