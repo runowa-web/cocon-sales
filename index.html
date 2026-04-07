@@ -1087,8 +1087,13 @@ function CompanyList({data, setDetailId, search, upData}) {
   const categoryColors = data.settings?.categoryColors || {};
   // 市町村を住所から抽出
   const CITY_ORDER = ['一宮市','稲沢市','江南市','岩倉市','清須市','北名古屋市','羽島市','各務原市','笠松町','岐南町'];
+  const ICHI_TOWNS = ['浅井町','今伊勢町','千秋町','萩原町','木曽川町','大和町','丹陽町','奥町','北方町','開明','瀬部','浅野','大江','栄','本町','松降','桜','羽衣','水附町','富士','大志','北園','多加木','牛野','猿海道','森本','音羽','緑','公園通','花池','末広','住吉','向山','平和','八幡','神山','新生','赤見','貴船','大宮','朝日','両郷','伝法寺','中島通','松山町','小信中島','三条','東五城','明地','冨田','上祖父江','富塚','光明寺','時之島','起','篭屋','島村','高田','定水寺','西大海道','大赤見','南小渕','北小渕','柚木颪','下沼町','真清田','大毛','相生','佐千原','野口','文京','下川田','北神明','藤塚','西出町','丹羽','中町','牛野通','松降通','北園通','小赤見','平安','大浜','西島町','北今','松山','西五城','西島','赤見','下沼','中島','栄','緑','桜'];
   const extractCity = (addr) => {
-    for(const c of CITY_ORDER) { if(addr && addr.includes(c)) return c; }
+    if(!addr) return 'その他';
+    for(const c of CITY_ORDER) { if(addr.includes(c)) return c; }
+    // 一宮市の町名で始まる住所（一宮市が省略されているケース）
+    const clean = addr.replace(/〒\d{3}-?\d{4}\s*/g, '').trim();
+    for(const t of ICHI_TOWNS) { if(clean.startsWith(t)) return '一宮市'; }
     return 'その他';
   };
   const cities = CITY_ORDER.filter(c => data.offices.some(o => extractCity(o.address) === c));
