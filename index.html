@@ -289,27 +289,31 @@ const FIREBASE_CONFIG = {
 let db = null;
 let storage = null;
 const FIRESTORE_DOC = 'app/main';
-let _firestoreReady = null; // Promiseで初期化完了を管理
 try {
   if(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId) {
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
     storage = firebase.storage();
-    // Firestore IndexedDBの破損データをクリア（Target ID already exists対策）
-    _firestoreReady = db.terminate().then(() => {
-      db = firebase.firestore();
-      console.log('✅ Firebase接続済み - リアルタイム同期ON');
-      return true;
-    }).catch(e => {
-      console.log('Firestore再初期化:', e.message||e);
-      db = firebase.firestore();
-      return true;
-    });
+    console.log('✅ Firebase接続済み - リアルタイム同期ON');
   } else {
     console.log('ℹ️ Firebase未設定 - ローカル保存モード');
-    _firestoreReady = Promise.resolve(false);
   }
-} catch(e) { console.log('Firebase初期化エラー:', e); db = null; storage = null; _firestoreReady = Promise.resolve(false); }
+} catch(e) { console.log('Firebase初期化エラー:', e); db = null; storage = null; }
+
+// Firestore安全リスナー登録（Target ID衝突時はリトライ）
+function safeOnSnapshot(docRef, onNext, onError) {
+  try {
+    return docRef.onSnapshot(snap => {
+      try { onNext(snap); } catch(e) { console.log('snapshot処理エラー:', e.message||e); }
+    }, err => {
+      console.log('Firestoreリスナーエラー（ローカルで動作継続）:', err.message||err);
+      if(onError) onError(err);
+    });
+  } catch(e) {
+    console.log('リスナー登録エラー:', e.message||e);
+    return () => {};
+  }
+}
 
 // Utilities
 const uid = () => Math.random().toString(36).substr(2,9) + Date.now().toString(36);
@@ -401,28 +405,24 @@ function setAppPassword(pw) {
       .catch(e=>console.log('パスワード同期エラー:', e));
   }
 }
-// Firestoreからパスワードを取得して同期（リアルタイムリスナーのみ使用）
+// Firestoreからパスワードを取得して同期
 let passwordListenerRegistered = false;
 function syncPasswordFromFirestore() {
   if(!db || passwordListenerRegistered) return;
   passwordListenerRegistered = true;
-  try {
-    db.doc('app/settings').onSnapshot(snap => {
-      try {
-        if(snap.exists && snap.data().appPassword) {
-          const remotePw = snap.data().appPassword;
-          const currentPw = localStorage.getItem(PW_LS_KEY);
-          if(currentPw !== remotePw) {
-            localStorage.setItem(PW_LS_KEY, remotePw);
-            console.log('🔑 パスワードをクラウドから同期');
-          }
-        }
-      } catch(e) { console.log('パスワードリスナー処理エラー:', e.message||e); }
-    }, e => console.log('パスワードリスナーエラー:', e.message||e));
-  } catch(e) { console.log('パスワードリスナー登録エラー:', e.message||e); }
+  safeOnSnapshot(db.doc('app/settings'), snap => {
+    if(snap.exists && snap.data().appPassword) {
+      const remotePw = snap.data().appPassword;
+      const currentPw = localStorage.getItem(PW_LS_KEY);
+      if(currentPw !== remotePw) {
+        localStorage.setItem(PW_LS_KEY, remotePw);
+        console.log('🔑 パスワードをクラウドから同期');
+      }
+    }
+  });
 }
-// Firebaseが準備できたら呼び出す
-if(_firestoreReady) _firestoreReady.then(ok => { if(ok && db) syncPasswordFromFirestore(); });
+// Firebaseが準備できたら呼び出す（少し遅延して初期化完了を待つ）
+if(db) setTimeout(syncPasswordFromFirestore, 100);
 
 function SplashScreen({onDone}) {
   const [fadeOut, setFadeOut] = useState(false);
@@ -692,48 +692,36 @@ function App() {
     // 初回読み込みはonSnapshotリスナーに統合（Target ID衝突を防止）
   }, []);
 
-  // ─── Firestore リアルタイム同期リスナー（_firestoreReady待ち） ───
-  const firestoreSkipRef = useRef(false);
+  // ─── Firestore リアルタイム同期リスナー ───
   useEffect(() => {
-    if(!_firestoreReady) return;
-    let unsub = () => {};
-    let cancelled = false;
-    _firestoreReady.then(ok => {
-      if(!ok || !db || cancelled) return;
-      const deviceId = sessionStorage.getItem('kokon_device_id');
-      try {
-        unsub = db.doc(FIRESTORE_DOC).onSnapshot(snap => {
-          try {
-            if(!snap.exists) return;
-            const remote = snap.data();
-            if(remote._updatedBy === deviceId) return;
-            console.log('🔄 リモートから同期更新を受信');
-            setData(prev => {
-              const merged = {...remote};
-              delete merged._updatedAt;
-              delete merged._updatedBy;
-              if(!merged.staff) merged.staff = [];
-              if(!merged.calendarEvents) merged.calendarEvents = [];
-              if(!merged.deals) merged.deals = [];
-              if(!merged.settings) merged.settings = {};
-              if(merged.calendarEvents && prev.calendarEvents) {
-                merged.calendarEvents = merged.calendarEvents.map(ev => {
-                  if(ev.cardPhoto === '[local]') {
-                    const local = prev.calendarEvents.find(l => l.id === ev.id);
-                    return local ? {...ev, cardPhoto: local.cardPhoto||''} : ev;
-                  }
-                  return ev;
-                });
-              }
-              return merged;
-            });
-          } catch(e) { console.log('onSnapshot処理エラー:', e.message||e); }
-        }, err => {
-          console.log('Firestore listener error:', err.message||err);
-        });
-      } catch(e) { console.log('onSnapshot登録エラー:', e.message||e); }
+    if(!db) return;
+    const deviceId = sessionStorage.getItem('kokon_device_id');
+    const unsub = safeOnSnapshot(db.doc(FIRESTORE_DOC), snap => {
+      if(!snap.exists) return;
+      const remote = snap.data();
+      if(remote._updatedBy === deviceId) return;
+      console.log('🔄 リモートから同期更新を受信');
+      setData(prev => {
+        const merged = {...remote};
+        delete merged._updatedAt;
+        delete merged._updatedBy;
+        if(!merged.staff) merged.staff = [];
+        if(!merged.calendarEvents) merged.calendarEvents = [];
+        if(!merged.deals) merged.deals = [];
+        if(!merged.settings) merged.settings = {};
+        if(merged.calendarEvents && prev.calendarEvents) {
+          merged.calendarEvents = merged.calendarEvents.map(ev => {
+            if(ev.cardPhoto === '[local]') {
+              const local = prev.calendarEvents.find(l => l.id === ev.id);
+              return local ? {...ev, cardPhoto: local.cardPhoto||''} : ev;
+            }
+            return ev;
+          });
+        }
+        return merged;
+      });
     });
-    return () => { cancelled = true; try { unsub(); } catch(e) {} };
+    return () => { try { unsub(); } catch(e) {} };
   }, []);
 
   // ユーザー操作でデータ変更 → localStorage + Firestore両方に保存
