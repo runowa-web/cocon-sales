@@ -479,8 +479,13 @@ function daysSinceLastVisit(officeId, calendarEvents) {
   const now = new Date(); now.setHours(0,0,0,0);
   return Math.floor((now - lastDate) / 86400000);
 }
+function isOfficeClosed(officeId, calendarEvents) {
+  const visits = (calendarEvents||[]).filter(e=>e.officeId===officeId).sort((a,b)=>b.date.localeCompare(a.date));
+  return visits.length > 0 && visits[0].visitResult === '閉鎖';
+}
 
-function DaysBadge({days}) {
+function DaysBadge({days, closed}) {
+  if(closed) return <span className="days-badge" style={{background:'#fee2e2',color:'#dc2626',fontWeight:700,border:'1px solid #fca5a5'}}>閉鎖</span>;
   if(days===null) return <span className="days-badge days-none">未訪問</span>;
   if(days===0) return <span className="days-badge days-fresh">今日</span>;
   if(days<=7) return <span className="days-badge days-fresh">{days}日前</span>;
@@ -1225,12 +1230,13 @@ function CompanyList({data, setDetailId, search, upData}) {
         <tbody>
           {filtered.map(o => {
             const days = daysSinceLastVisit(o.id, data.calendarEvents);
+            const closed = isOfficeClosed(o.id, data.calendarEvents);
             const catColor = getCategoryColor(o.category, categoryColors);
             return (
-            <tr key={o.id}>
+            <tr key={o.id} style={closed?{opacity:0.6}:{}}>
               <td className="company-name" onClick={()=>setDetailId('office-'+o.id)} style={{whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.name}</td>
               <td style={{whiteSpace:'nowrap'}}><span style={{fontSize:11,background:catColor+'20',color:catColor,padding:'2px 8px',borderRadius:12,whiteSpace:'nowrap',border:`1px solid ${catColor}`}}>{o.category}</span></td>
-              <td style={{textAlign:'center'}}><DaysBadge days={days}/></td>
+              <td style={{textAlign:'center'}}><DaysBadge days={days} closed={closed}/></td>
               <td style={{fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.address}</td>
               <td style={{whiteSpace:'nowrap'}}>{o.phone && <a href={`tel:${o.phone}`} style={{color:'#7c3aed',textDecoration:'none'}}>{o.phone}</a>}</td>
               <td style={{fontSize:12,color:'#6b7280',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{o.org}</td>
@@ -1893,7 +1899,7 @@ function CameraModal({onCapture, onClose}) {
 function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData, currentDate, data}) {
   const isEdit = modal.type==='edit';
   const ev = isEdit ? modal.event : null;
-  const VISIT_RESULTS = ['未記録','対面挨拶','パンフレット・名刺のみお渡し','不在'];
+  const VISIT_RESULTS = ['未記録','対面挨拶','パンフレット・名刺のみお渡し','不在','閉鎖'];
   const RESPONSE_RATINGS = [{v:0,label:'未評価',color:'#9ca3af'},{v:1,label:'△',color:'#f59e0b'},{v:2,label:'○',color:'#3b82f6'},{v:3,label:'◎',color:'#059669'}];
   const isVisitorVisit = isEdit ? !ev.officeId && ['利用者訪問','事前訪問・契約','事前訪問','契約'].includes(ev.visitType) : modal.type==='add' && modal.isVisitor;
   const [f, setF] = useState(isEdit ? {
@@ -2111,7 +2117,7 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
           <h3 style={{fontSize:13,fontWeight:700,color:'#374151',marginBottom:12}}>📝 営業記録</h3>
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div className="form-group"><label>訪問結果</label>
-              <select value={f.visitResult} onChange={set('visitResult')} style={{color:f.visitResult==='対面挨拶'?'#059669':f.visitResult==='不在'?'#ef4444':'#374151'}}>
+              <select value={f.visitResult} onChange={set('visitResult')} style={{color:f.visitResult==='対面挨拶'?'#059669':f.visitResult==='不在'?'#ef4444':f.visitResult==='閉鎖'?'#dc2626':'#374151'}}>
                 {VISIT_RESULTS.map(r=><option key={r} value={r}>{r}</option>)}
               </select>
             </div>
@@ -2511,7 +2517,7 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
   const [editVisit, setEditVisit] = useState({visitResult:'', contactPerson:'', memo:''});
   const [addingVisit, setAddingVisit] = useState(false);
   const [newVisit, setNewVisit] = useState({date:new Date().toISOString().split('T')[0], startTime:'09:00', endTime:'10:00', staffId:'', visitResult:'対面挨拶', contactPerson:'', memo:''});
-  const VISIT_RESULTS = ['対面挨拶', 'パンフレット・名刺のみお渡し', '不在', '未記録'];
+  const VISIT_RESULTS = ['対面挨拶', 'パンフレット・名刺のみお渡し', '不在', '閉鎖', '未記録'];
 
   const startEditVisit = (v) => {
     setEditingVisitId(v.id);
@@ -2642,7 +2648,7 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
 
               {visits.length>0 ? visits.slice(0,10).map(v => {
                 const s = (data.staff||[]).find(x=>x.id===v.staffId);
-                const resultColor = v.visitResult==='対面挨拶'?'#059669':v.visitResult==='不在'?'#ef4444':'#6b7280';
+                const resultColor = v.visitResult==='対面挨拶'?'#059669':v.visitResult==='不在'?'#ef4444':v.visitResult==='閉鎖'?'#dc2626':'#6b7280';
                 if(editingVisitId===v.id) {
                   return (
                     <div key={v.id} style={{padding:10,marginBottom:8,background:'#f0f9ff',borderRadius:10,fontSize:12}}>
@@ -2668,7 +2674,7 @@ function OfficeDetailPanel({data, detailId, setDetailId, upData, setModal}) {
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
                       <span style={{fontWeight:600,color:'#374151'}}>{v.date} {v.startTime}〜{v.endTime}</span>
                       <div style={{display:'flex',alignItems:'center',gap:4}}>
-                        {v.visitResult&&v.visitResult!=='未記録' && <span style={{fontSize:11,fontWeight:600,color:resultColor,background:v.visitResult==='対面挨拶'?'#dcfce7':v.visitResult==='不在'?'#fee2e2':'#f3f4f6',padding:'2px 8px',borderRadius:10}}>{v.visitResult}</span>}
+                        {v.visitResult&&v.visitResult!=='未記録' && <span style={{fontSize:11,fontWeight:600,color:resultColor,background:v.visitResult==='対面挨拶'?'#dcfce7':v.visitResult==='不在'?'#fee2e2':v.visitResult==='閉鎖'?'#fee2e2':'#f3f4f6',padding:'2px 8px',borderRadius:10}}>{v.visitResult}</span>}
                         <button onClick={()=>startEditVisit(v)} style={{background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:13}} title="編集">✏️</button>
                         <button onClick={()=>deleteVisit(v.id)} style={{background:'none',border:'none',color:'#d1d5db',cursor:'pointer',fontSize:14}} title="削除">✕</button>
                       </div>
