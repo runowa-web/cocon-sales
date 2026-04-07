@@ -1542,6 +1542,12 @@ function SalesCalendar({data, upData, setModal}) {
     } else if(dragData.type==='visitorCreate') {
       // 新しい利用者訪問予定を作成
       upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'利用者訪問',visitorName:'',visitorPhone:''}]}));
+    } else if(dragData.type==='preVisitCreate') {
+      // 新しい事前訪問予定を作成
+      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'事前訪問',visitorName:'',visitorPhone:''}]}));
+    } else if(dragData.type==='contractCreate') {
+      // 新しい契約予定を作成
+      upData(d=>({...d, calendarEvents:[...(d.calendarEvents||[]), {id:uid(),staffId,date:currentDate,startTime:toTime(startMin),endTime:toTime(endMin),memo:'',visitType:'契約',visitorName:'',visitorPhone:''}]}));
     }
     setDragData(null);
   };
@@ -1657,15 +1663,18 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
         const sEvents = events.filter(e=>e.staffId===s.id);
         return sEvents.map(ev=>{
           const isVisitor = !ev.officeId && ev.visitType === '利用者訪問';
-          const office = isVisitor ? null : offices.find(o=>o.id===ev.officeId);
-          if(!isVisitor && !office) return null;
+          const isPreVisit = !ev.officeId && ev.visitType === '事前訪問';
+          const isContract = !ev.officeId && ev.visitType === '契約';
+          const isSpecialType = isVisitor || isPreVisit || isContract;
+          const office = isSpecialType ? null : offices.find(o=>o.id===ev.officeId);
+          if(!isSpecialType && !office) return null;
           const startMin=timeToMin(ev.startTime), endMin=timeToMin(ev.endTime);
           const top = HEADER_H + startMin*(CAL_CELL_H/15);
           const height = Math.max((endMin-startMin)*(CAL_CELL_H/15), CAL_CELL_H);
           const cp = colPositions[s.id];
           const colW = cp ? cp.width : (gridRef.current ? (gridRef.current.scrollWidth-72)/cols : 220);
           const left = cp ? cp.left + 3 : (72 + sIdx*colW + 3);
-          const color = isVisitor ? '#eab308' : getCategoryColor(office.category, categoryColors);
+          const color = isVisitor ? '#eab308' : isPreVisit ? '#8b5cf6' : isContract ? '#ef4444' : getCategoryColor(office.category, categoryColors);
           const bgColor = color + '20'; // Add transparency
           return (
             <div key={ev.id} className={dragData?.eventId===ev.id?'dragging':''}
@@ -1675,8 +1684,8 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
               onMouseEnter={e=>{e.target.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)';e.target.style.transform='scale(1.02)';e.target.style.zIndex='10';}}
               onMouseLeave={e=>{e.target.style.boxShadow='none';e.target.style.transform='scale(1)';e.target.style.zIndex='5';}}
               onClick={()=>onClickEvent(ev)}>
-              <div style={{fontWeight:700,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?`${ev.visitorName||'利用者'}（利用者訪問）`:`${office.name}${ev.visitResult&&ev.visitResult!=='未記録'?` [${ev.visitResult}]`:''}`}</div>
-              {height>=25 && <div style={{color:'#6b7280',fontSize:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?ev.visitorPhone||'':office.category}</div>}
+              <div style={{fontWeight:700,color:'#1a1a2e',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isVisitor?`${ev.visitorName||'利用者'}（利用者訪問）`:isPreVisit?`${ev.visitorName||'利用者'}（事前訪問）`:isContract?`${ev.visitorName||'利用者'}（契約）`:`${office.name}${ev.visitResult&&ev.visitResult!=='未記録'?` [${ev.visitResult}]`:''}`}</div>
+              {height>=25 && <div style={{color:'#6b7280',fontSize:10,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{isSpecialType?ev.visitorPhone||'':office.category}</div>}
               {height>=40 && <div style={{color:'#9ca3af',fontSize:10,marginTop:1}}>{ev.startTime}〜{ev.endTime} {!isVisitor && ev.contactPerson&&`・${ev.contactPerson}`} {ev.memo&&`・${ev.memo}`}</div>}
             </div>
           );
@@ -1705,13 +1714,23 @@ function CalUnassigned({offices, categoryColors, setDragData, currentDate, calen
 
   return (
     <div className="unassigned-panel">
-      {/* 利用者訪問新規作成カード */}
+      {/* 利用者訪問・事前訪問・契約 新規作成カード */}
       <div style={{marginBottom:12}}>
         <div className="unassigned-body">
           <div className="unassigned-card" draggable
             onDragStart={e=>{setDragData({type:'visitorCreate',duration:1});e.dataTransfer.effectAllowed='copy';}}
             style={{borderLeftColor:'#eab308'}}>
             <div className="uc-name" style={{color:'#92400e'}}>利用者訪問</div>
+          </div>
+          <div className="unassigned-card" draggable
+            onDragStart={e=>{setDragData({type:'preVisitCreate',duration:0.5});e.dataTransfer.effectAllowed='copy';}}
+            style={{borderLeftColor:'#8b5cf6'}}>
+            <div className="uc-name" style={{color:'#5b21b6'}}>事前訪問</div>
+          </div>
+          <div className="unassigned-card" draggable
+            onDragStart={e=>{setDragData({type:'contractCreate',duration:1});e.dataTransfer.effectAllowed='copy';}}
+            style={{borderLeftColor:'#ef4444'}}>
+            <div className="uc-name" style={{color:'#991b1b'}}>契約</div>
           </div>
         </div>
       </div>
@@ -1814,7 +1833,7 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
   const ev = isEdit ? modal.event : null;
   const VISIT_RESULTS = ['未記録','対面挨拶','パンフレット・名刺のみお渡し','不在'];
   const RESPONSE_RATINGS = [{v:0,label:'未評価',color:'#9ca3af'},{v:1,label:'△',color:'#f59e0b'},{v:2,label:'○',color:'#3b82f6'},{v:3,label:'◎',color:'#059669'}];
-  const isVisitorVisit = isEdit ? !ev.officeId && ev.visitType==='利用者訪問' : modal.type==='add' && modal.isVisitor;
+  const isVisitorVisit = isEdit ? !ev.officeId && ['利用者訪問','事前訪問','契約'].includes(ev.visitType) : modal.type==='add' && modal.isVisitor;
   const [f, setF] = useState(isEdit ? {
     officeId:ev.officeId||'',staffId:ev.staffId,date:ev.date||currentDate,startTime:ev.startTime,endTime:ev.endTime,memo:ev.memo||'',
     visitResult:ev.visitResult||'未記録',contactPerson:ev.contactPerson||'',contactPhone:ev.contactPhone||'',contactEmail:ev.contactEmail||'',
@@ -1891,7 +1910,7 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
     // ━━ カメラ対応版：cardPhotoUrl/cardPhotoStorageIdを追加 ━━
     const eventData = {
       ...f,
-      visitType: isVisitorVisit ? '利用者訪問' : '営業',
+      visitType: isVisitorVisit ? (isEdit && ev.visitType ? ev.visitType : '利用者訪問') : '営業',
       cardPhotoUrl: cardPhotoUrl,
       cardPhotoStorageId: cardPhotoStorageId
     };
@@ -1908,14 +1927,15 @@ function CalEventModal({modal, setModal, staff, offices, calendarEvents, upData,
       const s = staff.find(x=>x.id===eventData.staffId);
       if(!s) return;
 
-      const isVisitor = eventData.visitType === '利用者訪問' || eventData.memo?.includes('利用者訪問') || eventData.category === '利用者訪問';
+      const isVisitor = ['利用者訪問','事前訪問','契約'].includes(eventData.visitType) || eventData.memo?.includes('利用者訪問') || eventData.category === '利用者訪問';
 
       let summary, eventAddress, desc;
       if(isVisitor) {
         // 利用者訪問
-        summary = `${eventData.visitorName||'利用者'}（利用者訪問）　${s.name}`;
+        const typeLabel = eventData.visitType || '利用者訪問';
+        summary = `${eventData.visitorName||'利用者'}（${typeLabel}）　${s.name}`;
         eventAddress = eventData.visitorPhone || '';
-        desc = `利用者名: ${eventData.visitorName||'-'}\n電話: ${eventData.visitorPhone||'-'}\nメモ: ${eventData.memo||'-'}`;
+        desc = `種別: ${typeLabel}\n利用者名: ${eventData.visitorName||'-'}\n電話: ${eventData.visitorPhone||'-'}\nメモ: ${eventData.memo||'-'}`;
       } else {
         // 営業先訪問
         const o = offices.find(x=>x.id===eventData.officeId);
