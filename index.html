@@ -1095,7 +1095,16 @@ function CompanyList({data, setDetailId, search, upData}) {
   const filtered = data.offices
     .filter(o => cat==='all' || o.category===cat)
     .filter(o => city==='all' || extractCity(o.address)===city)
-    .filter(o => !search || o.name.includes(search) || o.address.includes(search));
+    .filter(o => !search || o.name.includes(search) || (o.address||'').includes(search))
+    .sort((a, b) => {
+      const cityA = extractCity(a.address);
+      const cityB = extractCity(b.address);
+      const idxA = CITY_ORDER.indexOf(cityA) === -1 ? 999 : CITY_ORDER.indexOf(cityA);
+      const idxB = CITY_ORDER.indexOf(cityB) === -1 ? 999 : CITY_ORDER.indexOf(cityB);
+      if(idxA !== idxB) return idxA - idxB;
+      if(a.category !== b.category) return (a.category||'').localeCompare(b.category||'');
+      return (a.name||'').localeCompare(b.name||'');
+    });
 
   const importExcel = (e) => {
     const file = e.target.files[0]; if(!file) return;
