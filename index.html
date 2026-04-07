@@ -293,11 +293,6 @@ try {
   if(FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.projectId) {
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.firestore();
-    // Firestoreオフライン永続化を有効化（INTERNAL ASSERTION FAILED対策）
-    db.settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED, merge: true });
-    db.enablePersistence({synchronizeTabs: true}).catch(e => {
-      console.log('Firestore persistence:', e.code||e.message);
-    });
     storage = firebase.storage();
     console.log('✅ Firebase接続済み - リアルタイム同期ON（Firestore + Storage）');
   } else {
@@ -395,37 +390,27 @@ function setAppPassword(pw) {
       .catch(e=>console.log('パスワード同期エラー:', e));
   }
 }
-// Firestoreからパスワードを取得して同期（初回読み込み時）
+// Firestoreからパスワードを取得して同期（リアルタイムリスナーのみ使用）
 let passwordListenerRegistered = false;
 function syncPasswordFromFirestore() {
-  if(!db) return;
-
-  // 初回：リモートパスワードを取得
-  db.doc('app/settings').get().then(snap => {
-    if(snap.exists && snap.data().appPassword) {
-      const remotePw = snap.data().appPassword;
-      localStorage.setItem(PW_LS_KEY, remotePw);
-      console.log('🔑 クラウドからパスワードを初期化');
-    }
-  }).catch(e=>console.log('パスワード取得エラー:', e));
-
-  // リアルタイムリスナーは1度だけ設定
-  if(!passwordListenerRegistered) {
+  if(!db || passwordListenerRegistered) return;
+  passwordListenerRegistered = true;
+  try {
     db.doc('app/settings').onSnapshot(snap => {
-      if(snap.exists && snap.data().appPassword) {
-        const remotePw = snap.data().appPassword;
-        const currentPw = localStorage.getItem(PW_LS_KEY);
-        // パスワードが変わっていたら更新（他ユーザーによる変更を検知）
-        if(currentPw !== remotePw) {
-          localStorage.setItem(PW_LS_KEY, remotePw);
-          console.log('🔑 他のユーザーがパスワードを変更しました - 自動更新');
+      try {
+        if(snap.exists && snap.data().appPassword) {
+          const remotePw = snap.data().appPassword;
+          const currentPw = localStorage.getItem(PW_LS_KEY);
+          if(currentPw !== remotePw) {
+            localStorage.setItem(PW_LS_KEY, remotePw);
+            console.log('🔑 パスワードをクラウドから同期');
+          }
         }
-      }
-    });
-    passwordListenerRegistered = true;
-  }
+      } catch(e) { console.log('パスワードリスナー処理エラー:', e.message||e); }
+    }, e => console.log('パスワードリスナーエラー:', e.message||e));
+  } catch(e) { console.log('パスワードリスナー登録エラー:', e.message||e); }
 }
-// Firebaseが準備できたら呼び出す（useEffectで実装推奨）
+// Firebaseが準備できたら呼び出す
 if(db) syncPasswordFromFirestore();
 
 function SplashScreen({onDone}) {
@@ -693,34 +678,7 @@ function App() {
     if(!sessionStorage.getItem('kokon_device_id')) {
       sessionStorage.setItem('kokon_device_id', uid());
     }
-    // 初回起動時：Firestoreに既存データがあればそちらを優先読み込み
-    // ※ setDataしてもuseEffectはlocalStorage保存のみ。Firestore書き込みは発生しない
-    if(db) {
-      try {
-        db.doc(FIRESTORE_DOC).get().then(snap => {
-          try {
-            if(snap.exists) {
-              const remote = snap.data();
-              if(remote && remote.offices && remote.offices.length > 0) {
-                console.log('📥 Firestoreから既存データを読み込み');
-                const merged = {...remote};
-                delete merged._updatedAt;
-                delete merged._updatedBy;
-                // データ整合性チェック
-                if(!merged.staff) merged.staff = [];
-                if(!merged.calendarEvents) merged.calendarEvents = [];
-                if(!merged.deals) merged.deals = [];
-                if(!merged.settings) merged.settings = {};
-                setData(merged);
-              }
-            }
-            console.log('✅ Firestore初期化完了');
-          } catch(e) { console.log('Firestoreデータ処理エラー:', e.message||e); }
-        }).catch(e => {
-          console.log('初回Firestore読込エラー:', e.message||e);
-        });
-      } catch(e) { console.log('Firestore get例外:', e.message||e); }
-    }
+    // 初回読み込みはonSnapshotリスナーに統合（Target ID衝突を防止）
   }, []);
 
   // ─── Firestore リアルタイム同期リスナー ───
