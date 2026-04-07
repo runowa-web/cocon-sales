@@ -637,23 +637,58 @@ function setupFirebaseErrorHandling() {
   });
 }
 
+// ━━ 営業先マージ関数：リモート/ローカル/seedの和集合をIDベースで作成 ━━
+function mergeAllOffices(primaryOffices, secondaryOffices) {
+  const seeds = (window.__SEED_OFFICES__||[]).map(o => ({...o, id: o.id || uid()}));
+  const seedMap = new Map(seeds.map(s => [s.id, s]));
+  // IDベースでマージ（primary優先、次にsecondary、最後にseed）
+  const byId = new Map();
+  const byName = new Set();
+  // 1. primary（リモート or localStorage）をベースに
+  for(const o of primaryOffices) {
+    byId.set(o.id, o);
+    byName.add(o.name);
+  }
+  // 2. secondary（ローカルstate）の不足分を追加
+  for(const o of secondaryOffices) {
+    if(!byId.has(o.id) && !byName.has(o.name)) {
+      byId.set(o.id, o);
+      byName.add(o.name);
+    }
+  }
+  // 3. seedの不足分を追加
+  for(const s of seeds) {
+    if(!byId.has(s.id) && !byName.has(s.name)) {
+      byId.set(s.id, s);
+      byName.add(s.name);
+    }
+  }
+  // 4. 既存エントリの電話番号・住所をseedから補完
+  const result = Array.from(byId.values()).map(o => {
+    const seed = seedMap.get(o.id);
+    if(seed) {
+      const updated = {...o};
+      if(!o.phone && seed.phone) updated.phone = seed.phone;
+      if(!o.address && seed.address) updated.address = seed.address;
+      return updated;
+    }
+    return o;
+  });
+  const added = result.length - primaryOffices.length;
+  if(added > 0) console.log(`🌱 ${added}件の営業先を追加（合計${result.length}件）`);
+  return result;
+}
+
 function App() {
   const [authed, setAuthed] = useState(()=>sessionStorage.getItem('kokon_auth')==='1');
   const [showSplash, setShowSplash] = useState(false);
   const [data, setData] = useState(() => {
     const saved = loadData();
-    const seeds = (window.__SEED_OFFICES__||[]).map(o => ({...o, id: o.id || uid()}));
     if (saved && saved.offices) {
-      // マージ：シードデータに新しいエントリがあれば追加（ユーザーデータは保持）
-      const existingIds = new Set(saved.offices.map(o => o.id));
-      const existingNames = new Set(saved.offices.map(o => o.name));
-      const newSeeds = seeds.filter(s => !existingIds.has(s.id) && !existingNames.has(s.name));
-      if (newSeeds.length > 0) {
-        saved.offices = [...saved.offices, ...newSeeds];
-        console.log(`🌱 ${newSeeds.length}件の新規シードデータを追加`);
-      }
+      saved.offices = mergeAllOffices(saved.offices, []);
       return {...saved, staff: saved.staff||[], calendarEvents: saved.calendarEvents||[]};
     }
+    const seeds = (window.__SEED_OFFICES__||[]).map(o => ({...o, id: o.id || uid()}));
     return {
       offices: seeds,
       deals: [],
@@ -723,29 +758,8 @@ function App() {
             return ev;
           });
         }
-        // シードデータのマージ（リモートデータにも不足分を追加）
-        const seeds = (window.__SEED_OFFICES__||[]).map(o => ({...o, id: o.id || uid()}));
-        if(merged.offices && seeds.length > 0) {
-          const existingIds = new Set(merged.offices.map(o => o.id));
-          const existingNames = new Set(merged.offices.map(o => o.name));
-          const newSeeds = seeds.filter(s => !existingIds.has(s.id) && !existingNames.has(s.name));
-          if(newSeeds.length > 0) {
-            merged.offices = [...merged.offices, ...newSeeds];
-            console.log(`🌱 リモート同期後に${newSeeds.length}件の新規シードデータを追加`);
-          }
-          // 既存エントリの電話番号・住所を補完（seedに情報があり既存にない場合）
-          const seedMap = new Map(seeds.map(s => [s.id, s]));
-          merged.offices = merged.offices.map(o => {
-            const seed = seedMap.get(o.id);
-            if(seed) {
-              const updated = {...o};
-              if(!o.phone && seed.phone) updated.phone = seed.phone;
-              if(!o.address && seed.address) updated.address = seed.address;
-              return updated;
-            }
-            return o;
-          });
-        }
+        // officesマージ：リモート + ローカル(prev) + seed の和集合（IDベース重複排除）
+        merged.offices = mergeAllOffices(merged.offices||[], prev.offices||[]);
         return merged;
       });
     });
