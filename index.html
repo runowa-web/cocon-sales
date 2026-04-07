@@ -663,16 +663,26 @@ function mergeAllOffices(primaryOffices, secondaryOffices) {
       byName.add(s.name);
     }
   }
-  // 4. 既存エントリの電話番号・住所をseedから補完
+  // 4. 既存エントリの電話番号・住所をseedから補完 + 一宮市住所の自動修正
+  const ichiTowns = ['浅井町','今伊勢町','千秋町','萩原町','木曽川町','大和町','丹陽町','奥町','北方町','開明','瀬部','浅野','大江','栄','本町','松降','桜','羽衣','水附町','富士','大志','北園','多加木','牛野','猿海道','森本','音羽','緑','公園通','花池','末広','住吉','向山','平和','八幡','神山','新生','赤見','貴船','大宮','朝日','両郷','伝法寺','中島通','松山町','小信中島','三条','東五城','明地','冨田','上祖父江','富塚','光明寺','時之島','起','篭屋','島村','高田','定水寺','西大海道','大赤見','南小渕','北小渕','柚木颪','下沼町','真清田','大毛','相生','佐千原','野口','文京','下川田','北神明','藤塚','西出町','丹羽','中町','牛野通','松降通','北園通','小赤見','平安','大浜','西島町','北今','松山','西五城'];
   const result = Array.from(byId.values()).map(o => {
     const seed = seedMap.get(o.id);
+    const updated = seed ? {...o} : {...o};
     if(seed) {
-      const updated = {...o};
       if(!o.phone && seed.phone) updated.phone = seed.phone;
       if(!o.address && seed.address) updated.address = seed.address;
-      return updated;
     }
-    return o;
+    // 一宮市内の住所で「一宮市」が抜けている場合に補完
+    if(updated.address && !updated.address.includes('一宮市')) {
+      const cleanAddr = updated.address.replace(/〒\d{3}-?\d{4}\s*/g, '').trim();
+      for(const t of ichiTowns) {
+        if(cleanAddr.startsWith(t)) {
+          updated.address = updated.address.replace(cleanAddr, '一宮市' + cleanAddr);
+          break;
+        }
+      }
+    }
+    return updated;
   });
   const added = result.length - primaryOffices.length;
   if(added > 0) console.log(`🌱 ${added}件の営業先を追加（合計${result.length}件）`);
