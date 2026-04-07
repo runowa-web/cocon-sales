@@ -234,6 +234,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP'
 .staff-row .del-btn{background:none;border:none;color:#ef4444;cursor:pointer;font-size:16px;padding:4px 8px;border-radius:4px}
 .staff-row .del-btn:hover{background:#fee2e2}
 
+/* タップ選択中のハイライト */
+.unassigned-card.tap-selected{background:#ede9fe!important;border:2px solid #7c3aed!important;box-shadow:0 0 8px rgba(124,58,237,0.3)}
+.cal-cell.tap-target{background:rgba(124,58,237,0.12)!important;cursor:pointer}
+.tap-hint-bar{position:sticky;top:0;z-index:20;background:#7c3aed;color:#fff;text-align:center;padding:8px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px}
+.tap-hint-bar button{background:rgba(255,255,255,0.25);color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer}
+
 /* Responsive */
 @media(max-width:768px){
   .sidebar{width:60px;min-width:60px}
@@ -245,6 +251,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Noto Sans JP'
   .chart-row{grid-template-columns:1fr}
   .kanban-column{min-width:240px}
   .detail-panel{width:100%}
+  .cal-controls{padding:8px 12px!important;gap:6px!important;flex-wrap:wrap}
+  .date-label{min-width:140px!important;font-size:14px!important}
+  .cal-layout-wrapper{flex-direction:column!important}
+  .unassigned-panel{width:100%!important;min-width:100%!important;max-height:180px;border-left:none!important;border-top:1px solid #e5e7eb}
+  .cal-grid{min-height:400px}
+  .cal-staff-header,.cal-cell{min-width:120px!important}
 }
 
 /* ===== 通知UI スタイル ===== */
@@ -1649,9 +1661,10 @@ function SalesCalendar({data, upData, setModal}) {
         <div style={{flex:1}}></div>
         <button className="btn btn-primary btn-sm" onClick={()=>setCalModal({type:'add'})}>＋ 予定追加</button>
       </div>
-      <div style={{display:'flex',flex:1,overflow:'hidden'}}>
+      {dragData && <div className="tap-hint-bar">📌 カレンダーの配置したい時間をタップ <button onClick={()=>setDragData(null)}>✕ 取消</button></div>}
+      <div className="cal-layout-wrapper" style={{display:'flex',flex:1,overflow:'hidden'}}>
         <CalendarGrid staff={staff} events={events} offices={data.offices} categoryColors={data.settings?.categoryColors||{}} onDrop={handleDrop} dragData={dragData} setDragData={setDragData} onClickEvent={ev=>setCalModal({type:'edit',event:ev})}/>
-        <CalUnassigned offices={data.offices} categoryColors={data.settings?.categoryColors||{}} setDragData={setDragData} currentDate={currentDate} calendarEvents={data.calendarEvents||[]}/>
+        <CalUnassigned offices={data.offices} categoryColors={data.settings?.categoryColors||{}} setDragData={setDragData} dragData={dragData} currentDate={currentDate} calendarEvents={data.calendarEvents||[]}/>
       </div>
       {calModal && <CalEventModal modal={calModal} setModal={setCalModal} staff={staff} offices={data.offices} calendarEvents={data.calendarEvents||[]} upData={upData} currentDate={currentDate} data={data}/>}
     </div>
@@ -1770,34 +1783,48 @@ function CalendarGrid({staff, events, offices, categoryColors, onDrop, dragData,
 
 function CellSlot({staffId, hour, quarter, onDrop, dragData, isHourLine, isHalfLine}) {
   const [over, setOver] = useState(false);
+  const hasDrag = !!dragData;
   return (
-    <div className={`cal-cell ${isHourLine?'hour-line':''} ${isHalfLine?'half-line':''} ${over?'drag-over':''}`}
+    <div className={`cal-cell ${isHourLine?'hour-line':''} ${isHalfLine?'half-line':''} ${over?'drag-over':''} ${hasDrag?'tap-target':''}`}
       style={{height:CAL_CELL_H}}
       onDragOver={e=>{e.preventDefault();setOver(true);}}
       onDragLeave={()=>setOver(false)}
       onDrop={e=>{e.preventDefault();setOver(false);onDrop(staffId,hour,quarter);}}
+      onClick={()=>{if(hasDrag) onDrop(staffId,hour,quarter);}}
     />
   );
 }
 
-function CalUnassigned({offices, categoryColors, setDragData, currentDate, calendarEvents}) {
+function CalUnassigned({offices, categoryColors, setDragData, dragData, currentDate, calendarEvents}) {
   const [q, setQ] = useState('');
   const catColor = c => getCategoryColor(c, categoryColors);
   const filtered = offices.filter(o => !q || o.name.includes(q) || (o.category||'').includes(q));
+  const isSelected = (type, officeId) => {
+    if(!dragData) return false;
+    if(officeId) return dragData.type===type && dragData.officeId===officeId;
+    return dragData.type===type;
+  };
+  const tapSelect = (data) => {
+    // タップで選択/解除のトグル
+    if(dragData && dragData.type===data.type && dragData.officeId===data.officeId) { setDragData(null); return; }
+    setDragData(data);
+  };
 
   return (
     <div className="unassigned-panel">
       {/* 利用者訪問・事前訪問・契約 新規作成カード */}
       <div style={{marginBottom:12}}>
         <div className="unassigned-body">
-          <div className="unassigned-card" draggable
+          <div className={`unassigned-card ${isSelected('visitorCreate')?'tap-selected':''}`} draggable
             onDragStart={e=>{setDragData({type:'visitorCreate',duration:1});e.dataTransfer.effectAllowed='copy';}}
-            style={{borderLeftColor:'#eab308'}}>
+            onClick={()=>tapSelect({type:'visitorCreate',duration:1})}
+            style={{borderLeftColor:'#eab308',cursor:'pointer'}}>
             <div className="uc-name" style={{color:'#92400e'}}>利用者訪問</div>
           </div>
-          <div className="unassigned-card" draggable
+          <div className={`unassigned-card ${isSelected('preVisitContractCreate')?'tap-selected':''}`} draggable
             onDragStart={e=>{setDragData({type:'preVisitContractCreate',duration:1});e.dataTransfer.effectAllowed='copy';}}
-            style={{borderLeftColor:'#8b5cf6'}}>
+            onClick={()=>tapSelect({type:'preVisitContractCreate',duration:1})}
+            style={{borderLeftColor:'#8b5cf6',cursor:'pointer'}}>
             <div className="uc-name" style={{color:'#5b21b6'}}>事前訪問・契約</div>
           </div>
         </div>
@@ -1811,9 +1838,10 @@ function CalUnassigned({offices, categoryColors, setDragData, currentDate, calen
         </div>
         <div className="unassigned-body" style={{flex:1, overflow:'auto'}}>
           {filtered.map(o=>(
-            <div key={o.id} className="unassigned-card" draggable
+            <div key={o.id} className={`unassigned-card ${isSelected('unassigned',o.id)?'tap-selected':''}`} draggable
               onDragStart={e=>{setDragData({type:'unassigned',officeId:o.id,duration:0.5});e.dataTransfer.effectAllowed='copy';}}
-              style={{borderLeftColor:catColor(o.category)}}>
+              onClick={()=>tapSelect({type:'unassigned',officeId:o.id,duration:0.5})}
+              style={{borderLeftColor:catColor(o.category),cursor:'pointer'}}>
               <div className="uc-name">{o.name}</div>
               <div className="uc-cat">{o.category}</div>
               <div className="uc-phone">{o.phone}</div>
