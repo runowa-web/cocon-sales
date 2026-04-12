@@ -662,36 +662,39 @@ function setupFirebaseErrorHandling() {
 }
 
 // ━━ 営業先マージ関数：リモート/ローカル/seedの和集合をIDベースで作成 ━━
+// 名前の正規化（スペース・全角半角の違いを吸収）
+const normalizeName = s => (s||'').replace(/[\s　]+/g,'').trim();
+
 function mergeAllOffices(primaryOffices, secondaryOffices) {
   const seeds = (window.__SEED_OFFICES__||[]).map(o => ({...o, id: o.id || uid()}));
   const seedMap = new Map(seeds.map(s => [s.id, s]));
-  const seedNameMap = new Map(seeds.map(s => [s.name, s]));
+  const seedNameMap = new Map(seeds.map(s => [normalizeName(s.name), s]));
   // IDベースでマージ（primary優先、次にsecondary、最後にseed）
   const byId = new Map();
   const byName = new Set();
   // 1. primary（リモート or localStorage）をベースに
   for(const o of primaryOffices) {
     byId.set(o.id, o);
-    byName.add(o.name);
+    byName.add(normalizeName(o.name));
   }
   // 2. secondary（ローカルstate）の不足分を追加
   for(const o of secondaryOffices) {
-    if(!byId.has(o.id) && !byName.has(o.name)) {
+    if(!byId.has(o.id) && !byName.has(normalizeName(o.name))) {
       byId.set(o.id, o);
-      byName.add(o.name);
+      byName.add(normalizeName(o.name));
     }
   }
   // 3. seedの不足分を追加
   for(const s of seeds) {
-    if(!byId.has(s.id) && !byName.has(s.name)) {
+    if(!byId.has(s.id) && !byName.has(normalizeName(s.name))) {
       byId.set(s.id, s);
-      byName.add(s.name);
+      byName.add(normalizeName(s.name));
     }
   }
   // 4. 既存エントリの電話番号・住所をseedから補完 + 一宮市住所の自動修正
   const ichiTowns = ['浅井町','今伊勢町','千秋町','萩原町','木曽川町','大和町','丹陽町','奥町','北方町','開明','瀬部','浅野','大江','栄','本町','松降','桜','羽衣','水附町','富士','大志','北園','多加木','牛野','猿海道','森本','音羽','緑','公園通','花池','末広','住吉','向山','平和','八幡','神山','新生','赤見','貴船','大宮','朝日','両郷','伝法寺','中島通','松山町','小信中島','三条','東五城','明地','冨田','上祖父江','富塚','光明寺','時之島','起','篭屋','島村','高田','定水寺','西大海道','大赤見','南小渕','北小渕','柚木颪','下沼町','真清田','大毛','相生','佐千原','野口','文京','下川田','北神明','藤塚','西出町','丹羽','中町','牛野通','松降通','北園通','小赤見','平安','大浜','西島町','北今','松山','西五城'];
   const result = Array.from(byId.values()).map(o => {
-    const seed = seedMap.get(o.id) || seedNameMap.get(o.name);
+    const seed = seedMap.get(o.id) || seedNameMap.get(normalizeName(o.name));
     const updated = {...o};
     if(seed) {
       if(!o.phone && seed.phone) updated.phone = seed.phone;
@@ -713,9 +716,26 @@ function mergeAllOffices(primaryOffices, secondaryOffices) {
     }
     return updated;
   });
-  const added = result.length - primaryOffices.length;
-  if(added > 0) console.log(`🌱 ${added}件の営業先を追加（合計${result.length}件）`);
-  return result;
+  // 最終重複排除（名前正規化ベース、訪問記録が多い方を残す）
+  const finalByName = new Map();
+  result.forEach(o => {
+    const nk = normalizeName(o.name);
+    if(!nk) return;
+    if(!finalByName.has(nk)) { finalByName.set(nk, o); return; }
+    const prev = finalByName.get(nk);
+    if((o.visits||[]).length > (prev.visits||[]).length) finalByName.set(nk, o);
+  });
+  const finalKeepIds = new Set();
+  finalByName.forEach(o => finalKeepIds.add(o.id));
+  const deduped = result.filter(o => {
+    const nk = normalizeName(o.name);
+    if(!nk) return true;
+    return finalKeepIds.has(o.id);
+  });
+  const added = deduped.length - primaryOffices.length;
+  if(added > 0) console.log(`🌱 ${added}件の営業先を追加（合計${deduped.length}件）`);
+  if(result.length > deduped.length) console.log(`🔄 ${result.length - deduped.length}件の重複を排除`);
+  return deduped;
 }
 
 function App() {
