@@ -597,7 +597,8 @@ async function syncToGoogleCalWithRetry(event, {maxRetries=3, delayMs=1000}={}) 
       const response = await fetch(event.syncUrl, {
         method: 'POST',
         body: JSON.stringify(event),
-        headers: {'Content-Type':'application/json'},
+        // no-corsではapplication/jsonヘッダーは送信不可（ブラウザ仕様）。
+        // GAS側はe.postData.contentsで生のJSON文字列を受け取るためヘッダー不要
         mode: 'no-cors' // GAS側で対応
       });
       // no-cors modeでも fetch成功 = GASが受け取った
