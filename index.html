@@ -591,12 +591,22 @@ function wrapFirebaseOperation(promise, successMsg='') {
 // Google Calendar同期（リトライ機能付き）
 async function syncToGoogleCalWithRetry(event, {maxRetries=3, delayMs=1000}={}) {
   let lastError;
+  // GAS側(doPost)が期待するフィールド名（start/end/location/description）に変換
+  const payload = {
+    summary: event.summary,
+    start: event.startISO,
+    end: event.endISO,
+    location: event.eventAddress || '',
+    description: event.desc || '',
+    calendarType: event.calendarType,
+    targetCalendarId: event.targetCalendarId || ''
+  };
   for(let attempt=1; attempt<=maxRetries; attempt++) {
     try {
       // ━━ 注：GAS URLはno-cors対応なので、単純にfetchが成功したかで判定 ━━
       const response = await fetch(event.syncUrl, {
         method: 'POST',
-        body: JSON.stringify(event),
+        body: JSON.stringify(payload),
         // no-corsではapplication/jsonヘッダーは送信不可（ブラウザ仕様）。
         // GAS側はe.postData.contentsで生のJSON文字列を受け取るためヘッダー不要
         mode: 'no-cors' // GAS側で対応
